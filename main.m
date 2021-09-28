@@ -15,7 +15,7 @@ files;                                  % Add file paths
 key_call;                               % Parameter vector key
 
                         %===== Options =====% 
-fl_in = "in_2Dsod2fl";                  % -> Choose input file
+fl_in = "in_fedkiwEx2TestA";                  % -> Choose input file
 
                         %===== Grid/ICs =====%
 [prm,X,U,phi] = mesh_ICs(fl_in,key);    % Load parameters, mesh and ICs     

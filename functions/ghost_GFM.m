@@ -15,11 +15,13 @@ if (n_dim == 1)           %===== 1D Case =====%
 %--- Ghost liquid: Copies velocities 'u' and pressure 'p' from real gas,
 %------ extrapolates entropy 's' from adjacent real gas.
     UU = zeros(2,n_var,n);              % Allocate new domains
+        s = zeros(1,n);
 
                         %----- Extrapolate -----%
+
     if (flg_fld(1) == 0)                % Fluid 1
         s = zeros(1,n);
-        for i = 1:n     
+        for i = 1:n
             if (phi(i) > 0)             % Compute entropy in gas regions
                 s(i) = entrp_perfect(0,n_dim,c_EoS(1),U(:,i),s(i));
             end
@@ -31,6 +33,16 @@ if (n_dim == 1)           %===== 1D Case =====%
             end
         end
     end
+    figure(99)
+    length(X)
+    length(s)
+    % plot(X(phi<0),s(phi<0),'-or')
+    % hold on;
+    % plot(X(phi>0),s(phi>0),'-ob')
+    hold off
+    % for i = 1:n-1
+    %    if (phi(i+1)*phi(i) < 0), plot([X(i),1;X(i),50],'-'); end
+    % end
     if (flg_fld(2) == 0)                % Fluid 2
         s = zeros(1,n);
         for i = 1:n     
@@ -44,7 +56,15 @@ if (n_dim == 1)           %===== 1D Case =====%
                 UU(2,1,i) = entrp_perfect(1,n_dim,c_EoS(2),U(:,i),s(i));
             end
         end
-    end   
+    end
+    figure(100)
+    for i = 1:n-1
+       if (phi(i+1)*phi(i) < 0), plot([X(i),1;X(i),50],'-'); end
+    end
+    % plot(X(phi<0),s(phi<0),'-or')
+    % hold on;
+    % plot(X(phi>0),s(phi>0),'-ob')
+    hold off
 
                             %----- Copy -----%
     for i = 1:n

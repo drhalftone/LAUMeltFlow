@@ -13,17 +13,17 @@ n_dim = 1;                              % -> # of spatial dimensions
 dx = 0.01;                              % -> Grid spacing [m]
 x_min = 0; x_max = 1;                   % -> Grid boundaries [m]
 d = 0.5;                                % -> Dimensions [m]
-U_r(1,:) = [1,0,1.0e5];                 % -> Region (1) variables
-U_r(2,:) = [0.125,0,1.0e4];             % -> Region (2) variables
+U_r(1,:) = [1,    0, 1.0e5];                 % -> Region (1) variables
+U_r(2,:) = [0.125,0, 1.0e4];             % -> Region (2) variables
 flg_fld = [0,0];                        % -> Treat fluid as gas (0) or liquid (1)?
 EoS = ["perfect","perfect"];            % -> Pick EoS
 c_EoS = {1.4,1.2};                      % -> EoS parameters
 slvr = ["roe_perfect","roe_perfect"];   % -> Pick solver
-cfl = 0.5;                              % -> CFL # to get time step
-t_f = 0.0007;                           % -> Final simulation time [s]
+% cfl = 0.05;
+t_f = 0.00003;
 flg_BCs = 0;                            % -> Boundary conditions option 
-%n_r = 1;                               % -> # of solver iterations per reinitialization
-%e_r = 1e-4;                            % -> Reinitialization convergence tolerance
+% n_r = 1;                               % -> # of solver iterations per reinitialization
+% e_r = 1e-4;                            % -> Reinitialization convergence tolerance
 n_nds = 0;                              % -> # of parallel nodes for
                                             % iterations (0=serial,inf=maximum)
                                         

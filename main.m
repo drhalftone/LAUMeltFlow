@@ -15,7 +15,7 @@ files;                                  % Add file paths
 key_call;                               % Parameter vector key
 
                         %===== Options =====% 
-fl_in = "in_fedkiwEx2TestA";                  % -> Choose input file
+fl_in = "in_fedkiwEx2TestA";            % -> Choose input file
 
                         %===== Grid/ICs =====%
 [prm,X,U,phi] = mesh_ICs(fl_in,key);    % Load parameters, mesh and ICs     
@@ -36,7 +36,7 @@ if (flg_plt == 1)                       % Generate figure for plotting
         [X_out,U_out,phi_out] ...       % Interpolate before plotting animation
             = interp(prm,X,U,phi);
     end
-    plt(fig,prm,X_out,U_out,phi_out); 
+    % plt(fig,prm,X_out,U_out,phi_out);
 end
 W = state_var(prm,"cons",n_var,phi,U);  % Calculate initial conserved variables
 
@@ -45,9 +45,10 @@ if (n_r > 0), print_term(prm,5); end    % Print reinitializations header
 print_term(prm,6);                      % Print iterations header
 while (t < t_f)
                          %===== Solver =====%
-    a = state_var(prm,"SoS",1,phi,U);   % Compute speed of sound 
+    a = state_var(prm,"SoS",1,phi,U);   % Compute speed of sound
     dt = timestep(prm,U,a);             % Calculate time step
     if (t + dt > t_f), dt = t_f-t; end  % Adjust overshot time
+    dt = 0.1336323E-05;
     t = t + dt;                         % Tick time
     [UU,WW] = ghost_GFM(prm,X,phi,U);   % Define real/ghost domains
     WW = run_slvr(prm,dt,X,phi,UU,WW);  % Run solvers
@@ -58,7 +59,8 @@ while (t < t_f)
     cntr_r = cntr_r + 1; it_r = 0;      % Tick reinitialization counter
     if (cntr_r >= n_r && n_r > 0)                  
         cntr_r = 0;                     % Reset reinitialization counter
-        [phi,it_r] = reinit(prm,dt,phi); % Reinitialize 
+        % [phi,it_r] = reinit(prm,dt,phi); % Reinitialize
+        [phi] = reinit_fast(prm,phi); % Reinitialize
     end
     
                          %===== Results =====%

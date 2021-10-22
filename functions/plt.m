@@ -5,13 +5,29 @@ function plt(fig,prm,X,U,phi)
 %--- opt_plt = 1D flag, 2D Plotting option (1=contour with velocity vectors,2=surface)
 %--- U = [rho u (v) p]^T Array of primitive variables
 
-[n_dim,n_var,~,~,x_min,x_max,opt_plt,plt_ps,~,flg_vec,n_vec] = deal(prm{1:6},prm{22},prm{34:37});
+[n_dim,n_var,n,~,x_min,x_max,flg_fld,gam,n_out,opt_plt,plt_ps,~,flg_vec,n_vec] = deal(prm{1:6},prm{9},prm{11},prm{17},prm{22},prm{34:37});
 
+gamma = cell2mat(gam);                 % Pass specific heat ratio
 if (n_dim == 1)           %===== 1D Case =====% 
     for k = 1:n_var
         nexttile(fig,k);
         hold on; cla;
-        plot(X,squeeze(U(k,:)));
+        if (k == 1)
+            cp = [1005,1378];
+            for i = 1:n_out
+                if (phi(i) > 0)
+                    flag = 1;
+                else
+                    flag = 2;
+                end
+                R = (gamma(flag)-1)/gamma(flag)*cp(flag);
+                T(i) = U(3,i)/(R*U(1,i));
+            end
+            plot(X,squeeze(T),'-o');
+        else
+
+        plot(X,squeeze(U(k,:)),'-o');
+        end
     end
     nexttile(fig,n_var+1);
     hold on; cla;

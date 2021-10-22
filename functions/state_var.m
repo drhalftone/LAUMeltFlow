@@ -20,7 +20,7 @@ switch n_dim
                 a(:,i) = f_1(n_dim,c_EoS(1),H(:,i));
             elseif(phi(i) <= 0 && EoS(2) ~= "none")
                 %a(:,i) = feval(f_call(2),n_dim,c_EoS(2),H(:,i));
-                a(:,i) = f_2(n_dim,c_EoS(1),H(:,i));
+                a(:,i) = f_2(n_dim,c_EoS(2),H(:,i));
             end
         end
         

@@ -15,7 +15,7 @@ files;                                  % Add file paths
 key_call;                               % Parameter vector key
 
                         %===== Options =====% 
-fl_in = "in_fedkiwEx2TestA";            % -> Choose input file
+fl_in = "in_1Dsod1fl";            % -> Choose input file
 
                         %===== Grid/ICs =====%
 [prm,X,U,phi] = mesh_ICs(fl_in,key);    % Load parameters, mesh and ICs     
@@ -36,7 +36,6 @@ if (flg_plt == 1)                       % Generate figure for plotting
         [X_out,U_out,phi_out] ...       % Interpolate before plotting animation
             = interp(prm,X,U,phi);
     end
-    % plt(fig,prm,X_out,U_out,phi_out);
 end
 W = state_var(prm,"cons",n_var,phi,U);  % Calculate initial conserved variables
 

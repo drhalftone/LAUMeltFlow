@@ -28,7 +28,7 @@ from .data_generator import compute_roe_flux_1d, prim_to_cons_1d
 
 def load_trained_model(model_path: str = 'flux_model.pt'):
     """Load trained GNN model and normalizer."""
-    checkpoint = torch.load(model_path)
+    checkpoint = torch.load(model_path, weights_only=False)
 
     model = EulerGNN(
         n_var=3,

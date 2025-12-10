@@ -27,6 +27,29 @@ from meltflow.input.configs import load_config
 from .graph import create_1d_graph
 
 
+def prim_to_cons_1d(U: np.ndarray, gam: float) -> np.ndarray:
+    """
+    Convert primitive variables to conserved variables for 1D Euler.
+
+    Parameters
+    ----------
+    U : np.ndarray
+        Primitive variables [rho, u, p]
+    gam : float
+        Specific heat ratio
+
+    Returns
+    -------
+    np.ndarray
+        Conserved variables [rho, rho*u, E]
+    """
+    rho = U[0]
+    u = U[1]
+    p = U[2]
+    E = p / (gam - 1) + 0.5 * rho * u**2
+    return np.array([rho, rho * u, E])
+
+
 def compute_roe_flux_1d(
     prm: Parameters,
     U: np.ndarray,
@@ -51,12 +74,13 @@ def compute_roe_flux_1d(
     """
     n = U.shape[1]
     n_var = U.shape[0]
+    n_dim = prm.n_dim
     gamma = prm.c_EoS
 
     flux = np.zeros((n_var, n - 1))
 
     for i in range(n - 1):
-        # Left and right states
+        # Left and right primitive states
         U_L = U[:, i]
         U_R = U[:, i + 1]
 
@@ -67,8 +91,12 @@ def compute_roe_flux_1d(
         else:
             gam = gamma[1]
 
+        # Convert to conserved variables
+        W_L = prim_to_cons_1d(U_L, gam)
+        W_R = prim_to_cons_1d(U_R, gam)
+
         # Compute Roe flux
-        flux[:, i] = roe_flux1D(U_L, U_R, gam)
+        flux[:, i] = roe_flux1D(n_dim, gam, W_L, W_R)
 
     return flux
 

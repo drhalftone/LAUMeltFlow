@@ -1,0 +1,30 @@
+                            %===== Inputs =====%
+%- n_dim = # of spatial dimensions
+%- x = [x,(y)] Grid coordinates
+%- t_f = Duration of time to run
+
+                          %===== Intrinsics =====%
+%- dx = [dx,(dy)] Uniform grid spacing
+%- npt = [npt_x,(npt_y)]^T # of grid points 
+%- x_min = [x_min,(y_min)] Minimum grid point coordinates
+%- x_max = [x_max,(y_max)] Maximum grid point coordinates
+%- X = [X,(Y)] Meshed grids
+%- phi = Level set function (interface between liquid-gas)
+%- U = [rho u (v) p]^T Array of primitive variables
+%- W = [rho rho*u (rho*v) E]^T Array of conserved variables
+%- t = Simulation time
+       
+       1      2      3    4   5      6
+prm = {n_dim  n_var  n    dx  x_min  x_max ...
+       7    8    9        10   11     12    13
+       t_f  cfl  flg_fld  EoS  c_EoS  slvr  flg_BCs ...
+       14     15       16      17       18
+       n_nds  ICs_hdr  n_disp  n_out    flg_intrp ...
+       19       20      21       22       23   24
+       flg_wrt  wrt_nm  flg_plt  opt_plt  n_r  e_r ...
+       25        26      27      28        29
+       flg_anmt  n_anmt  t_anmt  wrt_prfx  wrt_sfx ...
+       30        31     32       33      34      35
+       n_rstrt   rd_nm  rd_prfx  rd_sfx  plt_ps  plt_wn ...
+       36       37     38    39
+       flg_vec  n_vec  t_0  flg_dbg};

@@ -182,6 +182,7 @@ def plot(fig: Figure, prm: 'Parameters', X: np.ndarray, U: np.ndarray,
                     v_vec = f_v(pts).reshape(X_vec.shape)
 
             clr_lb = [r"$\rho$", r"$p$", r"$\phi$"]
+            clr_titles = ["Density", "Pressure", "Level Set"]
             k_prp = [0, 3, -1]  # Indices for rho, p, phi
 
             for j, ax in enumerate(axes[:3]):
@@ -192,6 +193,10 @@ def plot(fig: Figure, prm: 'Parameters', X: np.ndarray, U: np.ndarray,
                     cf = ax.contourf(X_grid, Y, U[k_prp[j], :, :])
 
                 plt.colorbar(cf, ax=ax, label=clr_lb[j])
+                # Re-set labels and title after clear()
+                ax.set_xlabel(r"$x$ [m]")
+                ax.set_ylabel(r"$y$ [m]")
+                ax.set_title(clr_titles[j])
 
                 if flg_vec > 0:
                     ax.quiver(X_vec, Y_vec, u_vec, v_vec, color=clr_vec)
@@ -200,6 +205,7 @@ def plot(fig: Figure, prm: 'Parameters', X: np.ndarray, U: np.ndarray,
             # Surfaces
             axes = fig.get_axes()
             U_labels = [r"$\rho$", r"$u$", r"$v$", r"$p$", r"$\phi$"]
+            U_titles = ["Density", "Velocity (x)", "Velocity (y)", "Pressure", "Level Set"]
 
             for k, ax in enumerate(axes[:n_var + 1]):
                 ax.clear()
@@ -207,7 +213,11 @@ def plot(fig: Figure, prm: 'Parameters', X: np.ndarray, U: np.ndarray,
                     ax.plot_surface(X_grid, Y, phi, cmap='viridis')
                 else:
                     ax.plot_surface(X_grid, Y, U[k, :, :], cmap='viridis')
+                # Re-set labels and title after clear()
+                ax.set_xlabel(r"$x$ [m]")
+                ax.set_ylabel(r"$y$ [m]")
                 ax.set_zlabel(U_labels[k])
+                ax.set_title(U_titles[k])
 
     fig.canvas.draw()
     plt.pause(0.01)

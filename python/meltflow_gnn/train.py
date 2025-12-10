@@ -408,11 +408,16 @@ def main():
 
     mse_orig = np.mean((pred_orig - target_orig) ** 2)
     mae_orig = np.mean(np.abs(pred_orig - target_orig))
-    rel_error = np.mean(np.abs(pred_orig - target_orig) / (np.abs(target_orig) + 1e-8))
 
-    print(f"   Original scale MSE: {mse_orig:.6f}")
-    print(f"   Original scale MAE: {mae_orig:.6f}")
-    print(f"   Relative Error: {rel_error:.4%}")
+    # Per-variable metrics (more interpretable)
+    var_names = ['Mass', 'Momentum', 'Energy']
+    print(f"   Original scale MSE: {mse_orig:.2f}")
+    print(f"   Original scale MAE: {mae_orig:.2f}")
+    print(f"\n   Per-variable MAE:")
+    for i, name in enumerate(var_names):
+        var_mae = np.mean(np.abs(pred_orig[:, i] - target_orig[:, i]))
+        var_std = np.std(target_orig[:, i])
+        print(f"      {name}: MAE={var_mae:.2f}, Target std={var_std:.2f}, Ratio={var_mae/var_std:.4f}")
 
     # Plot results
     print("\n4. Plotting results...")
@@ -423,8 +428,7 @@ def main():
         'predictions': pred_orig,
         'targets': target_orig,
         'mse': mse_orig,
-        'mae': mae_orig,
-        'relative_error': rel_error
+        'mae': mae_orig
     }
     plot_flux_comparison(metrics_orig)
 

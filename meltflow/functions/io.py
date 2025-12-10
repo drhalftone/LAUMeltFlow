@@ -4,6 +4,7 @@ Input/Output functions for MeltFlow solver.
 Includes data writing, reading, and interpolation.
 """
 
+import os
 import numpy as np
 from scipy.interpolate import interp1d, interp2d, RegularGridInterpolator
 from typing import Tuple, TYPE_CHECKING
@@ -129,6 +130,11 @@ def wrt_data(prm: 'Parameters', X_out: np.ndarray, U_out: np.ndarray,
         n_out = n
 
     print(f"Writing flow field (file = '{wrt_fl}')...")
+
+    # Create directory if it doesn't exist
+    output_dir = os.path.dirname(wrt_fl)
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir)
 
     with open(wrt_fl, 'w') as fid:
         if n_dim == 1:

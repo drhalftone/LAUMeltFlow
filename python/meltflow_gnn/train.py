@@ -384,10 +384,10 @@ def main():
         train_graphs=train_graphs,
         val_graphs=val_graphs,
         n_var=3,
-        hidden_dim=128,
-        n_layers=4,
-        n_epochs=200,
-        batch_size=16,
+        hidden_dim=256,
+        n_layers=5,
+        n_epochs=500,
+        batch_size=32,
         learning_rate=1e-3,
         verbose=True
     )

@@ -33,8 +33,8 @@ def load_trained_model(model_path: str = 'flux_model.pt'):
     model = EulerGNN(
         n_var=3,
         n_edge_features=2,
-        hidden_dim=128,
-        n_layers=4
+        hidden_dim=256,
+        n_layers=5
     )
     model.load_state_dict(checkpoint['model_state_dict'])
     model.eval()

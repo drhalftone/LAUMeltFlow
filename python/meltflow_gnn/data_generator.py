@@ -157,12 +157,12 @@ def generate_trajectory(
     # Calculate conserved variables
     W = state_var(prm, "cons", n_var, phi, U)
 
-    while True:
-        # Compute speed of sound
-        a = state_var(prm, "SoS", 1, phi, U)
+    # Use fixed dt to match comparison script
+    dt_fixed = 0.1336323e-05
 
-        # Calculate time step
-        dt = timestep(prm, U, a)
+    while True:
+        # Use fixed timestep for consistency
+        dt = dt_fixed
         if t + dt > prm.t_f:
             dt = prm.t_f - t
 

@@ -1,0 +1,173 @@
+\documentclass[10pt]{beamer}
+\usetheme{Madrid}
+\setbeamertemplate{navigation symbols}{}
+\usepackage{appendixnumberbeamer}
+\usepackage{listings}
+\definecolor{mygreen}{RGB}{28,172,0} % color values Red, Green, Blue
+\definecolor{mylilas}{RGB}{170,55,241}
+\lstset{language=Matlab,%
+	basicstyle=\footnotesize,
+	breaklines=true,%
+	morekeywords={matlab2tikz},
+	keywordstyle=\color{blue},%
+	morekeywords=[2]{1}, keywordstyle=[2]{\color{black}},
+	identifierstyle=\color{black},%
+	stringstyle=\color{mylilas},
+	commentstyle=\color{mygreen},%
+	showstringspaces=false,%without this there will be a symbol in the places where there is a space
+	%numbers=left,%
+	%numberstyle={\tiny \color{black}},% size of the numbers
+	%numbersep=9pt, % this defines how far the numbers are from the text
+	emph=[1]{for,end,break},emphstyle=[1]\color{red}, %some words to emphasise
+	%emph=[2]{word1,word2}, emphstyle=[2]{style},    
+}
+\usepackage{datetime}
+\usepackage{siunitx}
+\usepackage{tikz}
+\usepackage{pgfplots,pgfmath,pgffor,pgfplotstable}
+\usetikzlibrary{matrix,backgrounds,arrows.meta,calc,decorations.markings,math,arrows.meta}
+\usepgfplotslibrary{groupplots,units}
+\usepackage[%style=numeric-comp,
+	style=chem-rsc,
+	citestyle=verbose-ibid,
+	maxcitenames=1,
+	bibstyle=authoryear,
+	%sorting=none,
+	firstinits=true,
+	citetracker=false,
+	%maxnames=10,
+	backend=bibtex8]{biblatex}
+\addbibresource{references}
+\renewbibmacro{in:}{}
+\DeclareFieldFormat[article]{title}{}
+
+\newcommand{\dataprefix}{../../../../../data/caiden2000numerical/1D_example_1/}
+\renewcommand{\footnotesize}{\scriptsize}
+
+\begin{document}
+	\pgfplotstableread{\dataprefix data_rhoL1000_caiden.d} \dataGFMExact
+	\pgfplotstableread{../data/flow_1Dcdrop.d} \dataGFMMine
+	\pgfplotstableread{../data/sod_exact.d} \dataSodExact
+	\pgfplotstableread{../data/flow_1Dsod.d} \dataSodMine
+	
+	\pgfplotsset{compat=newest,
+		styleExact/.style = {black,semithick,dotted},
+		styleMine/.style = {blue,semithick},
+	}	
+
+	\title[Melt Flow Update] {Melt Flow Update}
+	%\subtitle{Replicated from Example CFD Simulations}
+	\author{Tyler D. Stoffel}
+	\institute[CTFL]{University of Kentucky, Mechanical Engineering \\
+		Computational Thermophysics Fluid Laboratory}
+	\date{November 17, 2020}
+	
+	\maketitle
+	
+	\begin{frame}{Results}
+	\framesubtitle{Ghost-Fluid Method 1D}
+		\begin{figure}
+			\centering
+			\begin{tikzpicture}[font = \footnotesize,]
+				\begin{groupplot}[group style={group size=2 by 2,vertical sep = 0.75cm,horizontal sep = 1.5cm},
+					width = 5.25cm,
+					height = 3.6cm,
+				    ]
+				    \nextgroupplot[%xlabel = {$x$},
+					    %x unit = {\si{m}},
+					    ylabel = {$\rho$},
+					    y unit = {\si{kg/m^3}},
+					    legend to name = legmat,
+					    legend columns = 0,
+					    ]
+				    	\addplot[styleExact] table[x expr = \thisrowno{0}, y expr = \thisrowno{1}]{\dataGFMExact};
+				    	\addlegendentry{Caiden};
+				    	\addplot[styleMine] table[x expr = \thisrowno{0}, y expr = \thisrowno{1}]{\dataGFMMine};
+				    	\addlegendentry{Mine};
+				    	\coordinate (topleft) at (rel axis cs:0,1);% coordinate at top of the first plot
+				    \nextgroupplot[%xlabel = {$x$},
+    				    %x unit = {\si{m}},
+    				    ylabel = {$u$},
+    				    y unit = {\si{m/s}},
+    				    ]
+	   			    	\addplot[styleExact] table[x expr = \thisrowno{0}, y expr = \thisrowno{2}]{\dataGFMExact};
+	   			    	\addplot[styleMine] table[x expr = \thisrowno{0}, y expr = \thisrowno{2}]{\dataGFMMine};
+				    	\coordinate (topright) at (rel axis cs:1,1);% coordinate at top of the second plot
+	   			    \nextgroupplot[xlabel = {$x$},
+	   				    x unit = {\si{m}},
+	   				    ylabel = {$P$},
+	   				    y unit = {\si{Pa}},
+	   				    ]
+	   			    	\addplot[styleExact] table[x expr = \thisrowno{0}, y expr = \thisrowno{3}]{\dataGFMExact};
+	   			    	\addplot[styleMine] table[x expr = \thisrowno{0}, y expr = \thisrowno{3}]{\dataGFMMine};
+	   			    \nextgroupplot[xlabel = {$x$},
+					    x unit = {\si{m}},
+					    ylabel = {$\phi$},
+					    %y unit = {\si{}},
+					    ]
+	   			    	\addplot[styleExact] table[x expr = \thisrowno{0}, y expr = \thisrowno{4}]{\dataGFMExact};
+	   			    	\addplot[styleMine] table[x expr = \thisrowno{0}, y expr = \thisrowno{4}]{\dataGFMMine};
+    	                \coordinate (botright) at (rel axis cs:1,0);% coordinate at bottom of the last plot
+				\end{groupplot}
+				\path (topleft)--(topright) coordinate[midway] (top middle);
+				    \node[yshift = 0.1cm, anchor=south] at (top middle) {\pgfplotslegendfromname{legmat}};
+			\end{tikzpicture}
+			\caption{GFM results of 1D example 1 at $t=\SI{7.5e-4}{s}$}
+		\end{figure}
+	\end{frame}
+	
+	\begin{frame}{Results}
+	\framesubtitle{Shock Tube Problem}
+		\begin{figure}
+			\centering
+			\begin{tikzpicture}[font = \footnotesize,]
+				\begin{groupplot}[group style={group size=2 by 2,vertical sep = 0.75cm,horizontal sep = 1.5cm},
+					width = 5.25cm,
+					height = 3.6cm,
+				    ]
+				    \nextgroupplot[%xlabel = {$x$},
+					    %x unit = {\si{m}},
+					    ylabel = {$\rho$},
+					    y unit = {\si{kg/m^3}},
+					    legend to name = legmat,
+					    legend columns = 0,
+					    ]
+				    	\addplot[styleExact] table[x expr = \thisrowno{0}, y expr = \thisrowno{1}]{\dataSodExact};
+				    	\addlegendentry{Exact};
+				    	\addplot[styleMine] table[x expr = \thisrowno{0}, y expr = \thisrowno{1}]{\dataSodMine};
+				    	\addlegendentry{Mine};
+				    	\coordinate (topleft) at (rel axis cs:0,1);% coordinate at top of the first plot
+				    \nextgroupplot[%xlabel = {$x$},
+    				    %x unit = {\si{m}},
+    				    ylabel = {$u$},
+    				    y unit = {\si{m/s}},
+    				    ]
+	   			    	\addplot[styleExact] table[x expr = \thisrowno{0}, y expr = \thisrowno{2}]{\dataSodExact};
+	   			    	\addplot[styleMine] table[x expr = \thisrowno{0}, y expr = \thisrowno{2}]{\dataSodMine};
+				    	\coordinate (topright) at (rel axis cs:1,1);% coordinate at top of the second plot
+	   			    \nextgroupplot[xlabel = {$x$},
+	   				    x unit = {\si{m}},
+	   				    ylabel = {$P$},
+	   				    y unit = {\si{Pa}},
+	   				    ]
+	   			    	\addplot[styleExact] table[x expr = \thisrowno{0}, y expr = \thisrowno{3}]{\dataSodExact};
+	   			    	\addplot[styleMine] table[x expr = \thisrowno{0}, y expr = \thisrowno{3}]{\dataSodMine};
+	   			    \nextgroupplot[xlabel = {$x$},
+					    x unit = {\si{m}},
+					    ylabel = {$\phi$},
+					    %y unit = {\si{}},
+					    ]
+	   			    	\addplot[styleExact] table[x expr = \thisrowno{0}, y expr = \thisrowno{4}]{\dataSodExact};
+	   			    	\addplot[styleMine] table[x expr = \thisrowno{0}, y expr = \thisrowno{4}]{\dataSodMine};
+    	                \coordinate (botright) at (rel axis cs:1,0);% coordinate at bottom of the last plot
+				\end{groupplot}
+				\path (topleft)--(topright) coordinate[midway] (top middle);
+				    \node[yshift = 0.1cm, anchor=south] at (top middle) {\pgfplotslegendfromname{legmat}};
+			\end{tikzpicture}			
+			\caption{Shock tube problem results at $t=\SI{5e-4}{s}$}
+		\end{figure}
+	\end{frame}
+		
+	%\appendix
+	
+\end{document}

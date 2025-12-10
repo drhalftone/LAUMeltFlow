@@ -259,7 +259,8 @@ def in_2Dsod1fl() -> Tuple[Dict[str, Any], Callable]:
     def init_func(x: np.ndarray, U: np.ndarray, phi: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """Initialize U and phi based on geometry."""
         n = np.array([U.shape[1], U.shape[2]])
-        xx = x[0, :n[0]]
+        # x[0, :, 0] gives x-coordinates along first axis (all same along j)
+        xx = x[0, :, 0]
 
         for i in range(n[0]):
             for j in range(n[1]):

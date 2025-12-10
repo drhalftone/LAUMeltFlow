@@ -11,12 +11,61 @@ from torch_geometric.loader import DataLoader
 from torch_geometric.data import Data
 import numpy as np
 import matplotlib.pyplot as plt
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Dict
 import time
+import copy
 
 from .model import EulerGNN, FluxMLP
 from .data_generator import generate_training_dataset, FluxDataset
 from .graph import create_1d_graph
+
+
+class DataNormalizer:
+    """
+    Normalize node features and flux targets for better training.
+    """
+
+    def __init__(self):
+        self.node_mean = None
+        self.node_std = None
+        self.flux_mean = None
+        self.flux_std = None
+
+    def fit(self, graphs: List[Data]):
+        """Compute normalization statistics from training data."""
+        # Collect all node features and flux values
+        all_nodes = []
+        all_flux = []
+
+        for g in graphs:
+            all_nodes.append(g.x.numpy())
+            all_flux.append(g.flux.numpy())
+
+        all_nodes = np.concatenate(all_nodes, axis=0)
+        all_flux = np.concatenate(all_flux, axis=0)
+
+        self.node_mean = torch.tensor(all_nodes.mean(axis=0), dtype=torch.float32)
+        self.node_std = torch.tensor(all_nodes.std(axis=0) + 1e-8, dtype=torch.float32)
+        self.flux_mean = torch.tensor(all_flux.mean(axis=0), dtype=torch.float32)
+        self.flux_std = torch.tensor(all_flux.std(axis=0) + 1e-8, dtype=torch.float32)
+
+        print(f"   Node feature stats: mean={self.node_mean.numpy()}, std={self.node_std.numpy()}")
+        print(f"   Flux stats: mean={self.flux_mean.numpy()}, std={self.flux_std.numpy()}")
+
+    def transform(self, graphs: List[Data]) -> List[Data]:
+        """Normalize a list of graphs."""
+        normalized = []
+        for g in graphs:
+            g_new = copy.copy(g)
+            g_new.x = (g.x - self.node_mean) / self.node_std
+            g_new.flux = (g.flux - self.flux_mean) / self.flux_std
+            # Keep edge_attr unnormalized (dx, normal are already well-scaled)
+            normalized.append(g_new)
+        return normalized
+
+    def inverse_transform_flux(self, flux: torch.Tensor) -> torch.Tensor:
+        """Convert normalized flux back to original scale."""
+        return flux * self.flux_std + self.flux_mean
 
 
 def train_flux_model(
@@ -309,18 +358,25 @@ def main():
 
     # Generate training data
     print("\n1. Generating training data...")
-    train_graphs = generate_training_dataset(
+    all_graphs = generate_training_dataset(
         config_names=['in_1Dsod1fl'],
         n_trajectories_per_config=1,
-        save_interval=5
+        save_interval=1  # Save every timestep for more data
     )
 
     # Split into train/val
-    n_train = int(0.8 * len(train_graphs))
-    val_graphs = train_graphs[n_train:]
-    train_graphs = train_graphs[:n_train]
-    print(f"   Train samples: {len(train_graphs)}")
-    print(f"   Val samples: {len(val_graphs)}")
+    n_train = int(0.8 * len(all_graphs))
+    train_graphs_raw = all_graphs[:n_train]
+    val_graphs_raw = all_graphs[n_train:]
+    print(f"   Train samples: {len(train_graphs_raw)}")
+    print(f"   Val samples: {len(val_graphs_raw)}")
+
+    # Normalize data
+    print("\n   Normalizing data...")
+    normalizer = DataNormalizer()
+    normalizer.fit(train_graphs_raw)
+    train_graphs = normalizer.transform(train_graphs_raw)
+    val_graphs = normalizer.transform(val_graphs_raw)
 
     # Train model
     print("\n2. Training model...")
@@ -328,31 +384,63 @@ def main():
         train_graphs=train_graphs,
         val_graphs=val_graphs,
         n_var=3,
-        hidden_dim=64,
-        n_layers=3,
-        n_epochs=100,
-        batch_size=8,
+        hidden_dim=128,
+        n_layers=4,
+        n_epochs=200,
+        batch_size=16,
         learning_rate=1e-3,
         verbose=True
     )
 
-    # Evaluate
+    # Evaluate on normalized data
     print("\n3. Evaluating model...")
     metrics = evaluate_model(model, val_graphs)
-    print(f"   MSE: {metrics['mse']:.6f}")
-    print(f"   MAE: {metrics['mae']:.6f}")
-    print(f"   Relative Error: {metrics['relative_error']:.4%}")
+    print(f"   Normalized MSE: {metrics['mse']:.6f}")
+    print(f"   Normalized MAE: {metrics['mae']:.6f}")
+
+    # Convert back to original scale for interpretable metrics
+    pred_orig = normalizer.inverse_transform_flux(
+        torch.tensor(metrics['predictions'])
+    ).numpy()
+    target_orig = normalizer.inverse_transform_flux(
+        torch.tensor(metrics['targets'])
+    ).numpy()
+
+    mse_orig = np.mean((pred_orig - target_orig) ** 2)
+    mae_orig = np.mean(np.abs(pred_orig - target_orig))
+    rel_error = np.mean(np.abs(pred_orig - target_orig) / (np.abs(target_orig) + 1e-8))
+
+    print(f"   Original scale MSE: {mse_orig:.6f}")
+    print(f"   Original scale MAE: {mae_orig:.6f}")
+    print(f"   Relative Error: {rel_error:.4%}")
 
     # Plot results
     print("\n4. Plotting results...")
     plot_training_history(history)
-    plot_flux_comparison(metrics)
 
-    # Save model
-    torch.save(model.state_dict(), 'flux_model.pt')
+    # Plot with original scale values
+    metrics_orig = {
+        'predictions': pred_orig,
+        'targets': target_orig,
+        'mse': mse_orig,
+        'mae': mae_orig,
+        'relative_error': rel_error
+    }
+    plot_flux_comparison(metrics_orig)
+
+    # Save model and normalizer
+    torch.save({
+        'model_state_dict': model.state_dict(),
+        'normalizer': {
+            'node_mean': normalizer.node_mean,
+            'node_std': normalizer.node_std,
+            'flux_mean': normalizer.flux_mean,
+            'flux_std': normalizer.flux_std
+        }
+    }, 'flux_model.pt')
     print("\nModel saved to flux_model.pt")
 
-    return model, history, metrics
+    return model, history, metrics_orig, normalizer
 
 
 if __name__ == '__main__':

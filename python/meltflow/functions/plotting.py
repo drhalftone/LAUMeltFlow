@@ -220,7 +220,7 @@ def plot(fig: Figure, prm: 'Parameters', X: np.ndarray, U: np.ndarray,
                 ax.set_title(U_titles[k])
 
     fig.canvas.draw()
-    plt.pause(0.01)
+    fig.canvas.flush_events()
 
 
 def animate(fig: Figure, prm: 'Parameters', X: np.ndarray, U: np.ndarray,
@@ -244,4 +244,3 @@ def animate(fig: Figure, prm: 'Parameters', X: np.ndarray, U: np.ndarray,
         Pause time in seconds
     """
     plot(fig, prm, X, U, phi)
-    plt.pause(t_pause)

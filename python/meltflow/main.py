@@ -251,7 +251,6 @@ def run_simulation(config_name: str = 'in_1Dsod1fl', show_plot: bool = True) -> 
             else:
                 X_out, U_out, phi_out = X, U, phi
             plot(fig, prm, X_out, U_out, phi_out)
-            plt.pause(prm.t_anmt)
 
     print_term(prm, 8)
 

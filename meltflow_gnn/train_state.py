@@ -332,7 +332,7 @@ def main():
     print("\n1. Generating training data...")
     all_pairs = generate_state_pairs('in_1Dsod1fl')
 
-    # Split into train/val
+    # Split into train/val (sequential - keeps temporal coherence)
     n_train = int(0.8 * len(all_pairs))
     train_pairs_raw = all_pairs[:n_train]
     val_pairs_raw = all_pairs[n_train:]

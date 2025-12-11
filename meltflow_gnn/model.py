@@ -18,12 +18,21 @@ from typing import Optional, Tuple
 
 class FluxMLP(nn.Module):
     """
-    MLP to learn the numerical flux function.
+    MLP to learn the numerical flux function with antisymmetric constraint.
 
     Approximates: F* = f(U_left, U_right, edge_features)
 
+    Enforces antisymmetry: F_ij = -F_ji
+    This guarantees conservation: flux leaving cell i equals flux entering cell j.
+
+    The antisymmetry is achieved by:
+    1. Computing symmetric features: (x_i + x_j) and |x_i - x_j|
+    2. Computing antisymmetric features: (x_i - x_j)
+    3. The MLP outputs a "base flux" from symmetric features
+    4. The final flux is scaled by a learned function of antisymmetric features
+
     Input: Concatenation of left state, right state, and edge features
-    Output: Numerical flux vector
+    Output: Numerical flux vector (antisymmetric w.r.t. i,j swap)
     """
 
     def __init__(
@@ -31,7 +40,8 @@ class FluxMLP(nn.Module):
         n_var: int = 3,
         n_edge_features: int = 2,
         hidden_dim: int = 64,
-        n_layers: int = 3
+        n_layers: int = 3,
+        antisymmetric: bool = True
     ):
         """
         Parameters
@@ -44,27 +54,46 @@ class FluxMLP(nn.Module):
             Hidden layer dimension
         n_layers : int
             Number of hidden layers
+        antisymmetric : bool
+            If True, enforce F_ij = -F_ji constraint
         """
         super().__init__()
 
         self.n_var = n_var
+        self.antisymmetric = antisymmetric
+        self.n_node_features = n_var + 2  # +2 for phi and x_coord
 
-        # Input: [U_left (n_var+2), U_right (n_var+2), edge_attr (n_edge_features)]
-        # +2 for phi and x_coord in node features
-        input_dim = 2 * (n_var + 2) + n_edge_features
+        if antisymmetric:
+            # For exact antisymmetry, we use: F(i,j) = g(i,j) - g(j,i)
+            # g takes symmetric features + one-sided state
+            # Symmetric features: (x_i + x_j)/2, |x_i - x_j|, dx
+            # One-sided state: x_i (or x_j)
+            # Total input: 2 * n_node_features + 1 + n_node_features = 3 * n_node_features + 1
+            g_input_dim = 3 * self.n_node_features + 1
 
-        layers = []
-        layers.append(nn.Linear(input_dim, hidden_dim))
-        layers.append(nn.ReLU())
+            # Network g: learns flux contribution from one side
+            sym_layers = []
+            sym_layers.append(nn.Linear(g_input_dim, hidden_dim))
+            sym_layers.append(nn.ReLU())
+            for _ in range(n_layers - 1):
+                sym_layers.append(nn.Linear(hidden_dim, hidden_dim))
+                sym_layers.append(nn.ReLU())
+            sym_layers.append(nn.Linear(hidden_dim, n_var))
+            self.sym_mlp = nn.Sequential(*sym_layers)
+        else:
+            # Original non-antisymmetric version
+            input_dim = 2 * (n_var + 2) + n_edge_features
 
-        for _ in range(n_layers - 1):
-            layers.append(nn.Linear(hidden_dim, hidden_dim))
+            layers = []
+            layers.append(nn.Linear(input_dim, hidden_dim))
             layers.append(nn.ReLU())
 
-        # Output: flux for each conserved variable
-        layers.append(nn.Linear(hidden_dim, n_var))
+            for _ in range(n_layers - 1):
+                layers.append(nn.Linear(hidden_dim, hidden_dim))
+                layers.append(nn.ReLU())
 
-        self.mlp = nn.Sequential(*layers)
+            layers.append(nn.Linear(hidden_dim, n_var))
+            self.mlp = nn.Sequential(*layers)
 
     def forward(
         self,
@@ -88,10 +117,37 @@ class FluxMLP(nn.Module):
         -------
         torch.Tensor
             Numerical flux, shape (n_edges, n_var)
+            If antisymmetric=True, guarantees F(i,j) = -F(j,i)
         """
-        # Concatenate left state, right state, and edge features
-        inputs = torch.cat([x_i, x_j, edge_attr], dim=-1)
-        return self.mlp(inputs)
+        if self.antisymmetric:
+            # For exact antisymmetry: F(i,j) = g(i,j) - g(j,i)
+            # where g is any function. This guarantees F(j,i) = g(j,i) - g(i,j) = -F(i,j)
+
+            # Symmetric features (invariant to i,j swap)
+            avg_state = (x_i + x_j) / 2  # Average
+            abs_diff = torch.abs(x_i - x_j)  # Absolute difference
+            dx = edge_attr[:, 0:1]  # Grid spacing (symmetric)
+
+            sym_input = torch.cat([avg_state, abs_diff, dx], dim=-1)
+
+            # Compute g(i,j): flux contribution from i's perspective
+            # Uses x_i as the "source" state
+            g_ij_input = torch.cat([sym_input, x_i], dim=-1)
+            g_ij = self.sym_mlp(g_ij_input)
+
+            # Compute g(j,i): flux contribution from j's perspective
+            # Uses x_j as the "source" state
+            g_ji_input = torch.cat([sym_input, x_j], dim=-1)
+            g_ji = self.sym_mlp(g_ji_input)
+
+            # Antisymmetric flux: F(i,j) = g(i,j) - g(j,i)
+            flux = g_ij - g_ji
+
+            return flux
+        else:
+            # Original implementation
+            inputs = torch.cat([x_i, x_j, edge_attr], dim=-1)
+            return self.mlp(inputs)
 
 
 class FluxGNN(MessagePassing):
@@ -109,12 +165,13 @@ class FluxGNN(MessagePassing):
         n_var: int = 3,
         n_edge_features: int = 2,
         hidden_dim: int = 64,
-        n_layers: int = 3
+        n_layers: int = 3,
+        antisymmetric: bool = True
     ):
         super().__init__(aggr='add')  # Sum aggregation
 
         self.n_var = n_var
-        self.flux_net = FluxMLP(n_var, n_edge_features, hidden_dim, n_layers)
+        self.flux_net = FluxMLP(n_var, n_edge_features, hidden_dim, n_layers, antisymmetric)
 
     def forward(
         self,
@@ -184,6 +241,9 @@ class EulerGNN(nn.Module):
         U^{n+1} = U^n - dt * div(F)
 
     where div(F) is computed by the FluxGNN layer.
+
+    With antisymmetric=True, the flux function guarantees F_ij = -F_ji,
+    which ensures exact conservation of mass, momentum, and energy.
     """
 
     def __init__(
@@ -192,7 +252,8 @@ class EulerGNN(nn.Module):
         n_edge_features: int = 2,
         hidden_dim: int = 64,
         n_layers: int = 3,
-        n_message_passing: int = 1
+        n_message_passing: int = 1,
+        antisymmetric: bool = True
     ):
         """
         Parameters
@@ -207,15 +268,18 @@ class EulerGNN(nn.Module):
             Number of hidden layers in flux MLP
         n_message_passing : int
             Number of message passing iterations
+        antisymmetric : bool
+            If True, enforce F_ij = -F_ji for conservation
         """
         super().__init__()
 
         self.n_var = n_var
         self.n_message_passing = n_message_passing
+        self.antisymmetric = antisymmetric
 
         # Flux computation layers
         self.flux_layers = nn.ModuleList([
-            FluxGNN(n_var, n_edge_features, hidden_dim, n_layers)
+            FluxGNN(n_var, n_edge_features, hidden_dim, n_layers, antisymmetric)
             for _ in range(n_message_passing)
         ])
 

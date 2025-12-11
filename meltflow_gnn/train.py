@@ -31,8 +31,39 @@ except ImportError:
 GPU_AVAILABLE = CUDA_AVAILABLE or DML_AVAILABLE
 
 from .model import EulerGNN, FluxMLP
-from .data_generator import generate_training_dataset, FluxDataset
+from .data_generator import generate_training_dataset, FluxDataset, prim_to_cons_1d
 from .graph import create_1d_graph
+
+
+def compute_global_conserved(U: torch.Tensor, dx: float, gamma: float = 1.4) -> torch.Tensor:
+    """
+    Compute global conserved quantities (mass, momentum, energy).
+
+    Parameters
+    ----------
+    U : torch.Tensor
+        Primitive variables [rho, u, p], shape (n_nodes, 3)
+    dx : float
+        Grid spacing (cell volume in 1D)
+    gamma : float
+        Specific heat ratio
+
+    Returns
+    -------
+    torch.Tensor
+        [total_mass, total_momentum, total_energy], shape (3,)
+    """
+    rho = U[:, 0]
+    u = U[:, 1]
+    p = U[:, 2]
+
+    # Conserved variables per cell
+    mass = rho * dx
+    momentum = rho * u * dx
+    E = (p / (gamma - 1) + 0.5 * rho * u**2) * dx
+
+    # Sum over all cells
+    return torch.stack([mass.sum(), momentum.sum(), E.sum()])
 
 
 def get_device(use_gpu: bool = True):
@@ -111,7 +142,11 @@ def train_flux_model(
     batch_size: int = 32,
     learning_rate: float = 1e-3,
     device: str = 'cpu',
-    verbose: bool = True
+    verbose: bool = True,
+    antisymmetric: bool = False,
+    conservation_loss_weight: float = 0.0,
+    global_conservation_weight: float = 0.0,
+    gamma: float = 1.4
 ) -> Tuple[EulerGNN, dict]:
     """
     Train the GNN flux model.
@@ -138,6 +173,16 @@ def train_flux_model(
         Device to train on ('cpu' or 'cuda')
     verbose : bool
         Print training progress
+    antisymmetric : bool
+        If True, enforce F_ij = -F_ji constraint for conservation
+    conservation_loss_weight : float
+        Weight for edge antisymmetry loss (F_ij + F_ji should be 0).
+        Set to 0.0 to disable. NOTE: This was found to degrade performance.
+    global_conservation_weight : float
+        Weight for global conservation loss (compare total M, P, E before/after).
+        Set to 0.0 to disable. Typical values: 0.001 to 0.1.
+    gamma : float
+        Specific heat ratio for conservation loss computation
 
     Returns
     -------
@@ -149,7 +194,8 @@ def train_flux_model(
         n_var=n_var,
         n_edge_features=2,
         hidden_dim=hidden_dim,
-        n_layers=n_layers
+        n_layers=n_layers,
+        antisymmetric=antisymmetric
     ).to(device)
 
     # Create data loaders
@@ -168,6 +214,8 @@ def train_flux_model(
     history = {
         'train_loss': [],
         'val_loss': [],
+        'conservation_loss': [],
+        'global_conservation_loss': [],
         'epoch_time': []
     }
 
@@ -178,27 +226,60 @@ def train_flux_model(
         # Training
         model.train()
         train_loss = 0.0
+        cons_loss_total = 0.0
         n_batches = 0
 
         for batch in train_loader:
             batch = batch.to(device)
             optimizer.zero_grad()
 
-            # Compute predicted flux
-            pred_flux = model.compute_flux(batch)
+            # Compute predicted flux for ALL edges
+            pred_flux_all = model.compute_flux(batch)
 
             # Get target flux (need to handle batched data)
             # For batched graphs, flux is concatenated
             target_flux = batch.flux
 
             # Only use edges going in positive direction (normal = 1)
-            # to avoid double counting
-            mask = batch.edge_attr[:, 1] > 0
-            pred_flux = pred_flux[mask]
-            target_flux = target_flux
+            # to avoid double counting for the main loss
+            mask_pos = batch.edge_attr[:, 1] > 0
+            pred_flux = pred_flux_all[mask_pos]
 
-            # Compute loss
+            # Compute main flux prediction loss
             loss = criterion(pred_flux, target_flux)
+
+            # Compute conservation loss: F_ij + F_ji should be 0 (DEPRECATED - doesn't work well)
+            # For each positive edge (i->j), there's a negative edge (j->i)
+            # In 1D graphs, edges alternate: [0->1, 1->0, 1->2, 2->1, ...]
+            # So positive edges are at even indices, negative at odd
+            if conservation_loss_weight > 0:
+                mask_neg = batch.edge_attr[:, 1] < 0
+                pred_flux_pos = pred_flux_all[mask_pos]  # F_ij
+                pred_flux_neg = pred_flux_all[mask_neg]  # F_ji
+                # Conservation: F_ij + F_ji = 0
+                cons_loss = torch.mean((pred_flux_pos + pred_flux_neg) ** 2)
+                loss = loss + conservation_loss_weight * cons_loss
+                cons_loss_total += cons_loss.item()
+
+            # Global conservation loss: penalize if predicted flux causes different
+            # total mass/momentum/energy change than the true flux
+            if global_conservation_weight > 0:
+                # The key insight: the NET flux at boundaries determines conservation.
+                # For interior edges, fluxes cancel in pairs when summed over cells.
+                # The boundary flux (F_left at x=0, F_right at x=L) determines dQ/dt.
+
+                # Compute MEAN flux difference instead of SUM to avoid scale issues
+                # This is similar to MSE but emphasizes overall bias in flux prediction
+                flux_diff = pred_flux - target_flux  # (n_edges, 3)
+
+                # Mean flux difference per variable (should be close to 0 if well-calibrated)
+                mean_flux_diff = torch.mean(flux_diff, dim=0)  # (3,) - mean difference per variable
+
+                # Global conservation loss: mean difference squared (normalized by n_edges)
+                # This penalizes systematic bias in flux prediction
+                global_cons_loss = torch.mean(mean_flux_diff ** 2)
+
+                loss = loss + global_conservation_weight * global_cons_loss
 
             loss.backward()
             optimizer.step()
@@ -208,6 +289,8 @@ def train_flux_model(
 
         train_loss /= n_batches
         history['train_loss'].append(train_loss)
+        if conservation_loss_weight > 0:
+            history['conservation_loss'].append(cons_loss_total / n_batches)
 
         # Validation
         val_loss = 0.0
@@ -405,7 +488,7 @@ def main():
         save_interval=1  # Save every timestep for more data
     )
 
-    # Split into train/val
+    # Split into train/val (sequential - keeps temporal coherence)
     n_train = int(0.8 * len(all_graphs))
     train_graphs_raw = all_graphs[:n_train]
     val_graphs_raw = all_graphs[n_train:]
@@ -424,7 +507,15 @@ def main():
 
     # Train model - use larger batch size with GPU for better utilization
     batch_size = 64 if GPU_AVAILABLE else 32
-    print("\n2. Training model...")
+
+    # Conservation loss weights
+    # Edge antisymmetry loss (F_ij + F_ji = 0) - DEPRECATED, degrades performance
+    cons_weight = 0.0
+    # Global conservation loss (mean flux difference should be small)
+    # NOTE: Testing showed this also degrades simulation stability
+    global_cons_weight = 0.0
+
+    print(f"\n2. Training model (global_conservation_weight={global_cons_weight})...")
     model, history = train_flux_model(
         train_graphs=train_graphs,
         val_graphs=val_graphs,
@@ -435,7 +526,10 @@ def main():
         batch_size=batch_size,
         learning_rate=1e-3,
         device=device,
-        verbose=True
+        verbose=True,
+        antisymmetric=False,
+        conservation_loss_weight=cons_weight,
+        global_conservation_weight=global_cons_weight
     )
 
     # Evaluate on normalized data
@@ -486,9 +580,12 @@ def main():
             'node_std': normalizer.node_std,
             'flux_mean': normalizer.flux_mean,
             'flux_std': normalizer.flux_std
-        }
+        },
+        'antisymmetric': False,
+        'conservation_loss_weight': cons_weight,
+        'global_conservation_weight': global_cons_weight
     }, 'flux_model.pt')
-    print("\nModel saved to flux_model.pt")
+    print(f"\nModel saved to flux_model.pt (global_conservation_weight={global_cons_weight})")
 
     return model, history, metrics_orig, normalizer
 

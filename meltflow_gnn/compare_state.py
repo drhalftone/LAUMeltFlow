@@ -214,6 +214,34 @@ def run_comparison(config_name: str = 'in_1Dsod1fl', model_path: str = 'state_mo
     print(f"   Velocity: {np.sqrt(np.mean(err_u**2)):.6e}")
     print(f"   Pressure: {np.sqrt(np.mean(err_p**2)):.6e}")
 
+    # Save results to CSV
+    csv_path = 'data/gnn_state_comparison.csv'
+    os.makedirs('data', exist_ok=True)
+
+    # Create data array with all results
+    data_out = np.column_stack([
+        x,
+        U_orig[0, :], U_orig[1, :], U_orig[2, :],
+        U_gnn[0, :], U_gnn[1, :], U_gnn[2, :],
+        err_rho, err_u, err_p
+    ])
+
+    header = 'x,rho_meltflow,u_meltflow,p_meltflow,rho_gnn,u_gnn,p_gnn,err_rho,err_u,err_p'
+    np.savetxt(csv_path, data_out, delimiter=',', header=header, comments='',
+               fmt='%.10e')
+
+    # Also save summary statistics
+    summary_path = 'data/gnn_state_comparison_summary.csv'
+    with open(summary_path, 'w') as f:
+        f.write('metric,density,velocity,pressure\n')
+        f.write(f'rms_error,{np.sqrt(np.mean(err_rho**2)):.10e},{np.sqrt(np.mean(err_u**2)):.10e},{np.sqrt(np.mean(err_p**2)):.10e}\n')
+        f.write(f'max_error,{np.max(np.abs(err_rho)):.10e},{np.max(np.abs(err_u)):.10e},{np.max(np.abs(err_p)):.10e}\n')
+        f.write(f'mean_error,{np.mean(err_rho):.10e},{np.mean(err_u):.10e},{np.mean(err_p):.10e}\n')
+
+    print(f"\nResults saved to:")
+    print(f"   {csv_path}")
+    print(f"   {summary_path}")
+
     plt.ioff()
     plt.show()
 

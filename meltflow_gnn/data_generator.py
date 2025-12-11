@@ -211,7 +211,8 @@ def generate_trajectory(
 
 
 def trajectory_to_graphs(
-    trajectory: List[Dict[str, Any]]
+    trajectory: List[Dict[str, Any]],
+    include_next_state: bool = False
 ) -> List[Data]:
     """
     Convert a trajectory to a list of PyTorch Geometric graphs.
@@ -220,6 +221,8 @@ def trajectory_to_graphs(
     ----------
     trajectory : List[Dict]
         Output from generate_trajectory()
+    include_next_state : bool
+        If True, include next state's conserved variables for conservation loss
 
     Returns
     -------
@@ -227,12 +230,22 @@ def trajectory_to_graphs(
         List of graph Data objects
     """
     graphs = []
-    for step in trajectory:
+    for i, step in enumerate(trajectory):
         graph = create_1d_graph(step['x'], step['U'], step['phi'])
         # Add flux as target
         graph.flux = torch.tensor(step['flux'].T, dtype=torch.float32)
         graph.t = step['t']
         graph.dt = step['dt']
+
+        # Add next state for conservation loss computation
+        if include_next_state and i < len(trajectory) - 1:
+            next_step = trajectory[i + 1]
+            # Store next state's primitive variables
+            graph.U_next = torch.tensor(next_step['U'].T, dtype=torch.float32)
+            graph.has_next = True
+        else:
+            graph.has_next = False
+
         graphs.append(graph)
     return graphs
 
@@ -241,7 +254,8 @@ def generate_training_dataset(
     config_names: List[str] = ['in_1Dsod1fl'],
     n_trajectories_per_config: int = 1,
     perturbation_scale: float = 0.0,
-    save_interval: int = 10
+    save_interval: int = 10,
+    include_next_state: bool = False
 ) -> List[Data]:
     """
     Generate a training dataset from multiple configurations.
@@ -256,6 +270,8 @@ def generate_training_dataset(
         Scale of random perturbations to initial conditions
     save_interval : int
         Save data every n timesteps
+    include_next_state : bool
+        If True, include next state for conservation loss computation
 
     Returns
     -------
@@ -273,7 +289,7 @@ def generate_training_dataset(
                 config_name=config_name,
                 save_interval=save_interval
             )
-            graphs = trajectory_to_graphs(trajectory)
+            graphs = trajectory_to_graphs(trajectory, include_next_state=include_next_state)
             all_graphs.extend(graphs)
 
             print(f"  Generated {len(graphs)} samples")

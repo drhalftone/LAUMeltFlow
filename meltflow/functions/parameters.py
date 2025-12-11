@@ -82,6 +82,10 @@ class Parameters:
     # Debug
     flg_dbg: bool = False                   # Debug flag
 
+    # DG Method parameters
+    method: str = 'fvm'                     # 'fvm' (finite volume) or 'dg' (discontinuous Galerkin)
+    dg_order: int = 0                       # DG polynomial order (p=0 is equivalent to FVM)
+
     def __post_init__(self):
         """Convert lists to numpy arrays where appropriate."""
         if isinstance(self.flg_fld, list):
@@ -135,7 +139,9 @@ def apply_defaults(params: dict, n_dim: int) -> dict:
         'flg_vec': 0,
         'n_vec': 0,
         't_0': 0.0,
-        'flg_dbg': False
+        'flg_dbg': False,
+        'method': 'fvm',
+        'dg_order': 0
     }
 
     for key, value in defaults.items():
@@ -261,5 +267,7 @@ def create_parameters(config: dict) -> Parameters:
         e_r=config.get('e_r', 0.0),
         flg_vec=config['flg_vec'],
         n_vec=config['n_vec'],
-        flg_dbg=config['flg_dbg']
+        flg_dbg=config['flg_dbg'],
+        method=config['method'],
+        dg_order=config['dg_order']
     )

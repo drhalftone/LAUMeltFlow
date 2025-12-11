@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from .parameters import Parameters
 
 from .roe_perfect import roe_perfect
+from .dg_perfect import dg_perfect
 from .ghost_fluid import extrp
 from .state_var import state_var
 
@@ -158,6 +159,7 @@ def incomp_1D(prm: 'Parameters', fld: int, dt: float, X: np.ndarray,
 # Solver dispatch table
 SOLVERS = {
     'roe_perfect': roe_perfect,
+    'dg_perfect': dg_perfect,
     'none': none_solver,
     'incomp_1D': incomp_1D,
 }

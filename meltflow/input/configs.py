@@ -64,6 +64,148 @@ def in_1Dsod1fl() -> Tuple[Dict[str, Any], Callable]:
     return config, init_func
 
 
+def in_1Dsod1fl_dg0() -> Tuple[Dict[str, Any], Callable]:
+    """
+    1D Test Case - Sod's Shock Tube using DG with p=0 (should match FVM exactly).
+    """
+    config = {
+        'ICs_hdr': "%---- 1D Test Case - Sod's Shock Tube (DG p=0, FVM-equivalent) ----%",
+        'n_dim': 1,
+        'dx': 0.01,
+        'x_min': 0.0,
+        'x_max': 1.0,
+        'flg_fld': [0, 1],
+        'EoS': ["perfect", "none"],
+        'c_EoS': [1.4, 1.0],
+        'slvr': ["dg_perfect", "none"],
+        'cfl': 0.9,
+        't_f': 7.5e-4,
+        'flg_BCs': 1,
+        'n_out': 51,
+        'wrt_nm': "flow_1Dsod1fl_dg0",
+        'opt_plt': 1,
+        't_anmt': 1.2,
+        'n_anmt': 2,
+        'method': 'dg',
+        'dg_order': 0,  # p=0 should be identical to FVM
+    }
+
+    d = 0.5
+    U_r = np.array([
+        [1.0, 100.0, 1e5],
+        [0.125, 0.0, 1e4],
+    ])
+
+    def init_func(x: np.ndarray, U: np.ndarray, phi: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        n = len(x)
+        for i in range(n):
+            if x[i] <= d:
+                U[:, i] = U_r[0, :]
+            else:
+                U[:, i] = U_r[1, :]
+        phi[:] = 1
+        return U, phi
+
+    return config, init_func
+
+
+def in_1Dsod1fl_dg() -> Tuple[Dict[str, Any], Callable]:
+    """
+    1D Test Case - Single Fluid Sod's Shock Tube using Discontinuous Galerkin.
+
+    Same as in_1Dsod1fl but uses DG method for comparison testing.
+    Set dg_order=0 for FVM-equivalent, dg_order=1 for 2nd order accuracy.
+    """
+    config = {
+        'ICs_hdr': "%---- 1D Test Case - Sod's Shock Tube (DG p=1, 2nd order) ----%",
+        'n_dim': 1,
+        'dx': 0.01,
+        'x_min': 0.0,
+        'x_max': 1.0,
+        'flg_fld': [0, 1],
+        'EoS': ["perfect", "none"],
+        'c_EoS': [1.4, 1.0],
+        'slvr': ["dg_perfect", "none"],  # Use DG solver
+        'cfl': 0.9,
+        't_f': 7.5e-4,
+        'flg_BCs': 1,
+        'n_out': 51,
+        'wrt_nm': "flow_1Dsod1fl_dg",
+        'opt_plt': 1,
+        't_anmt': 1.2,
+        'n_anmt': 2,
+        # DG-specific parameters
+        'method': 'dg',
+        'dg_order': 1,  # p=1 for linear (2nd order), p=0 for FVM-equivalent
+    }
+
+    d = 0.5
+    U_r = np.array([
+        [1.0, 100.0, 1e5],
+        [0.125, 0.0, 1e4],
+    ])
+
+    def init_func(x: np.ndarray, U: np.ndarray, phi: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        """Initialize U and phi based on geometry."""
+        n = len(x)
+        for i in range(n):
+            if x[i] <= d:
+                U[:, i] = U_r[0, :]
+            else:
+                U[:, i] = U_r[1, :]
+        phi[:] = 1
+        return U, phi
+
+    return config, init_func
+
+
+def in_1Dsod1fl_dg2() -> Tuple[Dict[str, Any], Callable]:
+    """
+    1D Test Case - Sod's Shock Tube using DG with p=2 (3rd order).
+
+    WARNING: High-order DG without limiters may oscillate near shocks.
+    """
+    config = {
+        'ICs_hdr': "%---- 1D Test Case - Sod's Shock Tube (DG p=2, 3rd order) ----%",
+        'n_dim': 1,
+        'dx': 0.01,
+        'x_min': 0.0,
+        'x_max': 1.0,
+        'flg_fld': [0, 1],
+        'EoS': ["perfect", "none"],
+        'c_EoS': [1.4, 1.0],
+        'slvr': ["dg_perfect", "none"],
+        'cfl': 0.5,  # Lower CFL for stability with higher order
+        't_f': 7.5e-4,
+        'flg_BCs': 1,
+        'n_out': 51,
+        'wrt_nm': "flow_1Dsod1fl_dg2",
+        'opt_plt': 1,
+        't_anmt': 1.2,
+        'n_anmt': 2,
+        'method': 'dg',
+        'dg_order': 2,
+    }
+
+    d = 0.5
+    U_r = np.array([
+        [1.0, 100.0, 1e5],
+        [0.125, 0.0, 1e4],
+    ])
+
+    def init_func(x: np.ndarray, U: np.ndarray, phi: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        n = len(x)
+        for i in range(n):
+            if x[i] <= d:
+                U[:, i] = U_r[0, :]
+            else:
+                U[:, i] = U_r[1, :]
+        phi[:] = 1
+        return U, phi
+
+    return config, init_func
+
+
 def in_1Dsod2fl() -> Tuple[Dict[str, Any], Callable]:
     """
     1D Test Case - Two Fluid Pure Compressible Sod's Shock Tube.
@@ -277,6 +419,9 @@ def in_2Dsod1fl() -> Tuple[Dict[str, Any], Callable]:
 # Dictionary mapping config names to functions
 CONFIGS = {
     'in_1Dsod1fl': in_1Dsod1fl,
+    'in_1Dsod1fl_dg0': in_1Dsod1fl_dg0,
+    'in_1Dsod1fl_dg': in_1Dsod1fl_dg,
+    'in_1Dsod1fl_dg2': in_1Dsod1fl_dg2,
     'in_1Dsod2fl': in_1Dsod2fl,
     'in_1Dcdrop': in_1Dcdrop,
     'in_2Dcdrop': in_2Dcdrop,

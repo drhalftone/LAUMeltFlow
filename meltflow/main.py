@@ -279,9 +279,11 @@ def run_simulation(config_name: str = 'in_1Dsod1fl', show_plot: bool = True) -> 
 
     print_term(prm, 9)
 
-    if show_plot:
+    if show_plot and fig is not None:
         plt.ioff()
-        plt.show()
+        plt.show(block=False)
+        input('Press Enter to close and exit...')
+        plt.close('all')
 
     return {
         'X': X_out,

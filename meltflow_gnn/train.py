@@ -146,7 +146,8 @@ def train_flux_model(
     antisymmetric: bool = False,
     conservation_loss_weight: float = 0.0,
     global_conservation_weight: float = 0.0,
-    gamma: float = 1.4
+    gamma: float = 1.4,
+    use_residual: bool = True
 ) -> Tuple[EulerGNN, dict]:
     """
     Train the GNN flux model.
@@ -195,7 +196,8 @@ def train_flux_model(
         n_edge_features=2,
         hidden_dim=hidden_dim,
         n_layers=n_layers,
-        antisymmetric=antisymmetric
+        antisymmetric=antisymmetric,
+        use_residual=use_residual
     ).to(device)
 
     # Create data loaders
@@ -573,6 +575,7 @@ def main():
     plot_flux_comparison(metrics_orig)
 
     # Save model and normalizer
+    use_residual = True  # Using residual blocks with LayerNorm
     torch.save({
         'model_state_dict': model.state_dict(),
         'normalizer': {
@@ -583,9 +586,10 @@ def main():
         },
         'antisymmetric': False,
         'conservation_loss_weight': cons_weight,
-        'global_conservation_weight': global_cons_weight
+        'global_conservation_weight': global_cons_weight,
+        'use_residual': use_residual
     }, 'flux_model.pt')
-    print(f"\nModel saved to flux_model.pt (global_conservation_weight={global_cons_weight})")
+    print(f"\nModel saved to flux_model.pt (use_residual={use_residual})")
 
     return model, history, metrics_orig, normalizer
 

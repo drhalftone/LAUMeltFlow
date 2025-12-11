@@ -30,15 +30,17 @@ def load_trained_model(model_path: str = 'flux_model.pt'):
     """Load trained GNN model and normalizer."""
     checkpoint = torch.load(model_path, weights_only=False)
 
-    # Check if antisymmetric flag is stored in checkpoint
+    # Check if flags are stored in checkpoint
     antisymmetric = checkpoint.get('antisymmetric', True)
+    use_residual = checkpoint.get('use_residual', False)
 
     model = EulerGNN(
         n_var=3,
         n_edge_features=2,
         hidden_dim=256,
         n_layers=5,
-        antisymmetric=antisymmetric
+        antisymmetric=antisymmetric,
+        use_residual=use_residual
     )
     model.load_state_dict(checkpoint['model_state_dict'])
     model.eval()
@@ -193,7 +195,7 @@ def run_comparison(config_name: str = 'in_1Dsod1fl', model_path: str = 'flux_mod
     # Time stepping
     t = 0.0
     it = 0
-    dt_fixed = 0.1336323e-05  # Match MATLAB
+    dt_fixed = 0.1336323e-05  # Match original
 
     print(f"\nRunning simulation to t = {prm.t_f}")
     print("-" * 60)

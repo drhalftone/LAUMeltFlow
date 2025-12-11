@@ -20,10 +20,12 @@ The solver uses the Ghost Fluid Method to enforce physical jump conditions at fl
 - **1D and 2D simulations** with structured rectangular grids
 - **Multi-phase flow** support for gas-liquid systems
 - **Compressible flows** using Roe's approximate Riemann solver
+- **Discontinuous Galerkin (DG) method** with selectable polynomial order (p=0,1,2)
 - **Incompressible liquid** treatment option
 - **Level set interface tracking** with WENO reinitialization
 - **Real-time visualization** and animation
 - **Multiple equation of state** support (perfect gas)
+- **FVM/DG comparison tools** for method validation
 
 ## Installation
 
@@ -55,6 +57,12 @@ The solver uses the Ghost Fluid Method to enforce physical jump conditions at fl
    ```bash
    pip install -r requirements.txt
    ```
+
+   Or use the automated setup script:
+   ```bash
+   ./run_simulation.sh --help
+   ```
+   This creates a virtual environment and installs all dependencies automatically.
 
 ## Quick Start
 
@@ -144,7 +152,10 @@ LAUMeltFlow/
 
 | Configuration | Description |
 |---------------|-------------|
-| `in_1Dsod1fl` | 1D Sod shock tube (single fluid, two regions) |
+| `in_1Dsod1fl` | 1D Sod shock tube (FVM baseline) |
+| `in_1Dsod1fl_dg0` | 1D Sod shock tube (DG p=0, identical to FVM) |
+| `in_1Dsod1fl_dg` | 1D Sod shock tube (DG p=1, 2nd order) |
+| `in_1Dsod1fl_dg2` | 1D Sod shock tube (DG p=2, 3rd order) |
 | `in_1Dsod2fl` | 1D Sod shock tube (two different gases) |
 | `in_1Dcdrop` | 1D centered liquid droplet in gas |
 | `in_2Dcdrop` | 2D circular liquid droplet in gas |
@@ -220,6 +231,24 @@ The GFM separates the domain into real and ghost regions for each fluid:
 - Dimensional splitting for 2D (x-sweep, then y-sweep)
 - Supports periodic, Dirichlet, and Neumann boundary conditions
 
+### Discontinuous Galerkin Method
+
+The DG solver (`dg_perfect.py`) implements a higher-order accurate method:
+
+- **p=0**: Piecewise constant (mathematically identical to FVM)
+- **p=1**: Piecewise linear (2nd order accurate)
+- **p=2**: Piecewise quadratic (3rd order accurate)
+
+Uses the same Roe numerical flux as FVM for fair comparison. Select the method via config:
+
+```python
+config = {
+    'slvr': ["dg_perfect", "none"],  # Use DG solver
+    'method': 'dg',
+    'dg_order': 1,  # Polynomial order (0, 1, or 2)
+}
+```
+
 ### Level Set
 
 - **Advection**: Godunov upwind scheme with artificial viscosity
@@ -292,11 +321,44 @@ python -m meltflow --config in_mycase
 - **Matplotlib** >= 3.7.0 - Plotting and visualization
 - **Numba** >= 0.58.0 - JIT compilation (optional, for future performance)
 
+## Comparison Tools
+
+Scripts are provided to compare FVM and DG methods:
+
+```bash
+# Run all methods without plots
+python run_batch.py
+
+# Run all methods and show comparison
+python run_batch.py --compare
+
+# Compare results numerically and generate plot
+python compare_results.py --all
+
+# Save comparison plot to file
+python compare_results.py --save
+```
+
+The comparison tools generate plots showing all methods overlaid:
+
+![Method Comparison](data/method_comparison.png)
+
+## Scripts
+
+| Script | Description |
+|--------|-------------|
+| `run_simulation.sh` | Setup venv and run single simulation |
+| `run_batch.py` | Run multiple methods sequentially |
+| `run_all_methods.sh` | Run all 1D Sod methods with plots |
+| `compare_results.py` | Compare and visualize results |
+
 ## References
 
 - Fedkiw, R. P., Aslam, T., Merriman, B., & Osher, S. (1999). A non-oscillatory Eulerian approach to interfaces in multimaterial flows (the ghost fluid method). *Journal of Computational Physics*, 152(2), 457-492.
 
 - Roe, P. L. (1981). Approximate Riemann solvers, parameter vectors, and difference schemes. *Journal of Computational Physics*, 43(2), 357-372.
+
+- Cockburn, B., & Shu, C. W. (1998). The Runge-Kutta discontinuous Galerkin method for conservation laws V: multidimensional systems. *Journal of Computational Physics*, 141(2), 199-224.
 
 ## License
 

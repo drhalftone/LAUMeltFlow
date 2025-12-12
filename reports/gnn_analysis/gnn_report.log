@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.25 (MiKTeX 24.1) (preloaded format=pdflatex 2025.12.11)  11 DEC 2025 15:09
+This is pdfTeX, Version 3.141592653-2.6-1.40.25 (MiKTeX 24.1) (preloaded format=pdflatex 2025.12.11)  12 DEC 2025 15:05
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -440,24 +440,109 @@ fg
 File: epstopdf-sys.cfg 2021/03/18 v2.0 Configuration of epstopdf for MiKTeX
 ))
 Package hyperref Info: Link coloring OFF on input line 17.
- (gnn_report.out) (gnn_report.out
-! I can't write on file `gnn_report.pdf'.
-(Press Enter to retry, or Control-C to exit; default file extension is `.pdf')
-Please type another file name for output
-! Emergency stop.
-\Hy@OutlineName ...utline goto name{#2}count#3{#4}
-                                                  
-l.1 ...\000o\000d\000u\000c\000t\000i\000o\000n}{}
-                                                  % 1
-*** (job aborted, file error in nonstop mode)
+ (gnn_report.out) (gnn_report.out)
+\@outlinefile=\write3
+\openout3 = `gnn_report.out'.
 
- 
+Package caption Info: Begin \AtBeginDocument code.
+Package caption Info: End \AtBeginDocument code.
+LaTeX Font Info:    Trying to load font information for U+msa on input line 20.
+
+
+(C:\Users\dllau\AppData\Local\Programs\MiKTeX\tex/latex/amsfonts\umsa.fd
+File: umsa.fd 2013/01/14 v3.01 AMS symbols A
+)
+LaTeX Font Info:    Trying to load font information for U+msb on input line 20.
+
+
+(C:\Users\dllau\AppData\Local\Programs\MiKTeX\tex/latex/amsfonts\umsb.fd
+File: umsb.fd 2013/01/14 v3.01 AMS symbols B
+)
+<architecture.png, id=111, 860.013pt x 425.9112pt>
+File: architecture.png Graphic file (type png)
+<use architecture.png>
+Package pdftex.def Info: architecture.png  used on input line 53.
+(pdftex.def)             Requested size: 407.66833pt x 201.89398pt.
+
+[1
+
+{C:/Users/dllau/AppData/Local/MiKTeX/fonts/map/pdftex/pdftex.map}]
+<training_loss.png, id=129, 569.9694pt x 352.1958pt>
+File: training_loss.png Graphic file (type png)
+<use training_loss.png>
+Package pdftex.def Info: training_loss.png  used on input line 88.
+(pdftex.def)             Requested size: 317.07614pt x 195.93315pt.
+ [2 <./architecture.png>]
+<comparison_final.png, id=140, 1003.5894pt x 569.0058pt>
+File: comparison_final.png Graphic file (type png)
+<use comparison_final.png>
+Package pdftex.def Info: comparison_final.png  used on input line 99.
+(pdftex.def)             Requested size: 452.9679pt x 256.82297pt.
+ [3 <./training_loss.png> <./comparison_final.png>]
+<error_by_region.png, id=149, 714.9912pt x 423.984pt>
+File: error_by_region.png Graphic file (type png)
+<use error_by_region.png>
+Package pdftex.def Info: error_by_region.png  used on input line 125.
+(pdftex.def)             Requested size: 362.37569pt x 214.88979pt.
+<training_data_distribution.png, id=150, 859.5312pt x 279.9258pt>
+File: training_data_distribution.png Graphic file (type png)
+<use training_data_distribution.png>
+Package pdftex.def Info: training_data_distribution.png  used on input line 142
+.
+(pdftex.def)             Requested size: 452.9679pt x 147.52278pt.
+ [4 <./error_by_region.png> <./training_data_distribution.png>] [5] [6]
+<mlp_simulation.png, id=174, 1011.78pt x 289.08pt>
+File: mlp_simulation.png Graphic file (type png)
+<use mlp_simulation.png>
+Package pdftex.def Info: mlp_simulation.png  used on input line 310.
+(pdftex.def)             Requested size: 452.9679pt x 129.41873pt.
+ [7 <./mlp_simulation.png>] [8]
+<mlp_2d_results.png, id=193, 1011.78pt x 722.7pt>
+File: mlp_2d_results.png Graphic file (type png)
+<use mlp_2d_results.png>
+Package pdftex.def Info: mlp_2d_results.png  used on input line 444.
+(pdftex.def)             Requested size: 452.9679pt x 323.54683pt.
+ [9]
+<simulation_2d_comparison.png, id=201, 1084.05pt x 722.7pt>
+File: simulation_2d_comparison.png Graphic file (type png)
+<use simulation_2d_comparison.png>
+Package pdftex.def Info: simulation_2d_comparison.png  used on input line 476.
+(pdftex.def)             Requested size: 452.9679pt x 301.97705pt.
+ [10 <./mlp_2d_results.png>] [11 <./simulation_2d_comparison.png>] [12] (gnn_re
+port.aux)
+ ***********
+LaTeX2e <2023-11-01> patch level 1
+L3 programming layer <2024-01-04>
+ ***********
+Package rerunfilecheck Info: File `gnn_report.out' has not changed.
+(rerunfilecheck)             Checksum: 6BDFACE9557E0384F1264A346845622C;4456.
+ ) 
 Here is how much of TeX's memory you used:
- 11541 strings out of 474486
- 183129 string characters out of 5743754
- 1924542 words of memory out of 5000000
- 33721 multiletter control sequences out of 15000+600000
- 558369 words of font info for 37 fonts, out of 8000000 for 9000
+ 11843 strings out of 474486
+ 188597 string characters out of 5743754
+ 1939542 words of memory out of 5000000
+ 33915 multiletter control sequences out of 15000+600000
+ 568750 words of font info for 77 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 75i,1n,79p,291b,76s stack positions out of 10000i,1000n,20000p,200000b,200000s
-!  ==> Fatal error occurred, no output PDF file produced!
+ 75i,12n,79p,970b,530s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ <C:\Users\dllau\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi600\tcrm
+1095.pk><C:/Users/dllau/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfon
+ts/cm/cmbx10.pfb><C:/Users/dllau/AppData/Local/Programs/MiKTeX/fonts/type1/publ
+ic/amsfonts/cm/cmbx12.pfb><C:/Users/dllau/AppData/Local/Programs/MiKTeX/fonts/t
+ype1/public/amsfonts/cm/cmbx8.pfb><C:/Users/dllau/AppData/Local/Programs/MiKTeX
+/fonts/type1/public/amsfonts/cm/cmmi10.pfb><C:/Users/dllau/AppData/Local/Progra
+ms/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi8.pfb><C:/Users/dllau/AppData/Loca
+l/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr10.pfb><C:/Users/dllau/AppD
+ata/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr12.pfb><C:/Users/dl
+lau/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr17.pfb><C:/
+Users/dllau/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr7.p
+fb><C:/Users/dllau/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm
+/cmr8.pfb><C:/Users/dllau/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsf
+onts/cm/cmsy10.pfb><C:/Users/dllau/AppData/Local/Programs/MiKTeX/fonts/type1/pu
+blic/amsfonts/cm/cmsy8.pfb>
+Output written on gnn_report.pdf (12 pages, 986237 bytes).
+PDF statistics:
+ 301 PDF objects out of 1000 (max. 8388607)
+ 76 named destinations out of 1000 (max. 500000)
+ 257 words of extra memory for PDF output out of 10000 (max. 10000000)
+

@@ -64,38 +64,59 @@ Instead of generating training data from simulation trajectories (which naturall
 | flux_ρu | 1,101 | 48,900 | 2.25% |
 | flux_E | 1.19M | 48.2M | 2.48% |
 
+### Training Results (PyTorch, CUDA)
+
+- **GPU:** NVIDIA RTX 4070 Ti SUPER
+- **Architecture:** 6 → 256 → 256 → 256 → 256 → 256 → 3 (265,731 parameters)
+- **Training samples:** 900,000 (90% of 1M)
+- **Validation samples:** 100,000 (10%)
+- **Epochs:** 500
+- **Batch size:** 16,384
+- **Optimizer:** AdamW with cosine annealing
+- **Final validation loss:** 0.000077 (normalized MSE) - **12x better than CPU**
+- **Training time:** 79 seconds (0.16s/epoch)
+
+**Per-variable relative errors (MAE/std):**
+| Variable | MAE | Std | Relative Error |
+|----------|-----|-----|----------------|
+| flux_ρ | 0.81 | 112 | **0.73%** |
+| flux_ρu | 324 | 48,900 | **0.66%** |
+| flux_E | 316,562 | 48.2M | **0.66%** |
+
 ### Simulation Results
 
 The trained MLP was tested on the Sod shock tube problem:
 - **Grid:** 100 cells
 - **Final time:** 0.00075 s
-- **102 timesteps** completed successfully (no blowup!)
+- **101-102 timesteps** completed successfully (no blowup!)
 
 **Comparison with analytical Roe flux:**
-| Variable | MAE |
-|----------|-----|
-| Density | 0.020 kg/m³ |
-| Velocity | 15.7 m/s |
-| Pressure | 1,833 Pa |
+| Variable | CPU (50 epochs) | GPU (500 epochs) | Improvement |
+|----------|-----------------|------------------|-------------|
+| Density MAE | 0.020 kg/m³ | **0.006 kg/m³** | 3.4x better |
+| Velocity MAE | 15.7 m/s | **4.2 m/s** | 3.7x better |
+| Pressure MAE | 1,833 Pa | **625 Pa** | 2.9x better |
 
 **Observations:**
 - MLP captures expansion fan, shock, and contact discontinuity correctly
-- Some oscillations near discontinuities (MLP slightly less dissipative)
-- Simulation is stable
+- GPU-trained model achieves sub-1% relative errors on flux prediction
+- Simulation is stable with ~3-4x improvement in all metrics
 
-## Next Steps (for CUDA machine)
+## Next Steps
 
-### Phase 1: Baseline Training with PyTorch
+### Phase 1: Baseline Training with PyTorch ✅ COMPLETE
 
-1. **Set up PyTorch with CUDA**
+1. **Set up PyTorch with CUDA** ✅
    ```bash
-   pip install torch --index-url https://download.pytorch.org/whl/cu118
+   pip install torch --index-url https://download.pytorch.org/whl/cu124
    ```
 
-2. **Train on full 1M dataset (no validation split)**
-   - Use all 1M points for training
-   - Train for 200-500 epochs
-   - Save model
+2. **Train on 1M dataset** ✅
+   - 900K training / 100K validation split
+   - Trained for 500 epochs with cosine annealing
+   - Achieved 0.000077 validation loss (12x better than CPU)
+   - Training script: `meltflow_gnn/train_uniform_cuda.py`
+   - Model saved: `flux_model_cuda.pt` and `flux_model_cuda.npz`
 
 ### Phase 2: Adaptive Mesh Refinement
 
@@ -164,10 +185,12 @@ for iteration in range(max_iterations):
 ## File Locations
 
 - **Training data:** `data/uniform_flux_data.npz` (1M samples)
-- **Trained model:** `flux_model_uniform.npz`
+- **CPU model (NumPy):** `flux_model_uniform.npz`
+- **GPU model (PyTorch):** `flux_model_cuda.pt`, `flux_model_cuda.npz`
 - **Simulation output:** `mlp_simulation.png`
 - **Grid sampler:** `meltflow_gnn/grid_sampler.py`
-- **Training script:** `meltflow_gnn/train_uniform.py`
+- **CPU training script:** `meltflow_gnn/train_uniform.py`
+- **GPU training script:** `meltflow_gnn/train_uniform_cuda.py`
 - **Simulation script:** `meltflow_gnn/simulate_with_mlp.py`
 
 ## Key Insights

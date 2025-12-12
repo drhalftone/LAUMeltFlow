@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git pull:*)",
+      "Bash(python:*)",
+      "Bash(\"C:/Users/dllau/AppData/Local/Programs/MiKTeX/miktex/bin/x64/pdflatex.exe\" -interaction=nonstopmode gnn_report.tex)",
+      "Bash(ls:*)"
+    ]
+  }
+}

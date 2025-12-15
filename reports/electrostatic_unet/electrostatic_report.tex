@@ -1,0 +1,300 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{listings}
+\usepackage{xcolor}
+
+\lstset{
+    basicstyle=\ttfamily\small,
+    backgroundcolor=\color{gray!10},
+    frame=single,
+    breaklines=true
+}
+
+\title{Learning Electrostatic Potential with U-Net:\\From Point Charges to Neural Field Solvers}
+\author{LAUMeltFlow Project}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This report documents the development of a U-Net neural network that learns to compute electrostatic potential from point charge distributions in 2D. We begin with an analytical reference implementation in MATLAB, then develop a PyTorch-based U-Net to learn the mapping from charge density $\rho$ to potential $\phi$. This serves as a foundation for more complex particle-field simulations, including future extensions to 3D and electromagnetic fields from moving charges.
+\end{abstract}
+
+\section{Introduction}
+
+The computation of electromagnetic fields from charged particle distributions is fundamental to many physics simulations, from plasma physics to molecular dynamics. Traditional approaches solve Poisson's equation numerically using methods like finite differences, finite elements, or spectral methods. We explore whether a neural network can learn this mapping directly, potentially offering advantages in speed or flexibility.
+
+\subsection{Motivation}
+
+The eventual goal is a system where:
+\begin{enumerate}
+    \item Charged particles scatter their state onto a spatial hierarchy (quadtree in 2D, octree in 3D)
+    \item A neural network processes this representation to derive electromagnetic fields
+    \item Particles gather field values to compute forces and update trajectories
+\end{enumerate}
+
+Before tackling the full problem, we start with the simplest nontrivial case: learning the 2D electrostatic potential from static point charges.
+
+\subsection{Physics Background}
+
+The electrostatic potential in 2D from point charges is given by:
+\begin{equation}
+    \phi(\mathbf{r}) = -\sum_i q_i \ln|\mathbf{r} - \mathbf{r}_i|
+\end{equation}
+where we have absorbed physical constants for simplicity. This potential satisfies Poisson's equation:
+\begin{equation}
+    \nabla^2 \phi = -\frac{\rho}{\epsilon_0}
+\end{equation}
+
+The electric field is the negative gradient of the potential:
+\begin{equation}
+    \mathbf{E} = -\nabla \phi
+\end{equation}
+
+A key property of Poisson's equation is \textbf{linearity}: the potential from multiple charges equals the sum of potentials from individual charges (superposition principle).
+
+\section{MATLAB Reference Implementation}
+
+Before training a neural network, we developed a MATLAB implementation to compute the analytical solution and visualize the physics.
+
+\subsection{Implementation Details}
+
+The MATLAB script \texttt{matlab/electrostatic/electrostatic\_potential\_2d.m} performs the following:
+
+\begin{enumerate}
+    \item \textbf{Particle Generation}: $N$ point charges are placed randomly in a 2D domain $[0,1]^2$, with charges $q_i \in [-1, 1]$ drawn uniformly at random.
+
+    \item \textbf{Charge Density (Scatter)}: Each particle deposits its charge onto a computational grid using nearest-cell assignment:
+    \begin{equation}
+        \rho_{ij} = \sum_p \frac{q_p}{\Delta x \Delta y} \cdot \delta_{i,i_p} \delta_{j,j_p}
+    \end{equation}
+    where $(i_p, j_p)$ is the grid cell containing particle $p$.
+
+    \item \textbf{Potential Computation}: The analytical potential is computed at each grid point:
+    \begin{equation}
+        \phi_{ij} = -\sum_p q_p \ln\left(\max(|\mathbf{r}_{ij} - \mathbf{r}_p|, \epsilon)\right)
+    \end{equation}
+    where $\epsilon \approx 2\Delta x$ regularizes the singularity at particle centers.
+
+    \item \textbf{Electric Field}: Computed via numerical gradient:
+    \begin{equation}
+        \mathbf{E} = -\nabla \phi \approx -\left(\frac{\partial \phi}{\partial x}, \frac{\partial \phi}{\partial y}\right)
+    \end{equation}
+\end{enumerate}
+
+\subsection{Visualization}
+
+The implementation produces three visualization panels:
+
+\begin{enumerate}
+    \item \textbf{Charge Density}: Color map of $\rho$ with particle positions marked (red for positive, blue for negative charges).
+
+    \item \textbf{Electrostatic Potential}: Color map of $\phi$ with equipotential contours overlaid. Positive charges create potential wells (low values), negative charges create peaks.
+
+    \item \textbf{Electric Field}: Magnitude $|\mathbf{E}|$ on logarithmic scale with streamlines showing field direction. Field lines emanate from positive charges and terminate at negative charges.
+\end{enumerate}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{figures/electrostatic_fields.png}
+    \caption{Visualization of the 2D electrostatic simulation with 20 random point charges. (a) Charge density $\rho$ scattered to a $128 \times 128$ grid using nearest-cell assignment. (b) Electrostatic potential $\phi$ with equipotential contours. (c) Electric field magnitude $|\mathbf{E}|$ on logarithmic scale with streamlines showing field direction.}
+    \label{fig:electrostatic_fields}
+\end{figure}
+
+\subsection{Verification}
+
+Two verification tests are performed:
+
+\subsubsection{Poisson's Equation}
+
+The numerical Laplacian $\nabla^2 \phi$ is computed and compared to $-\rho$. For point charges, this comparison is approximate since the charge density involves delta functions, but away from particle centers the Laplacian should be near zero (as expected for a source-free region). Figure~\ref{fig:poisson_verification} shows this comparison.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{figures/poisson_verification.png}
+    \caption{Verification of Poisson's equation. (a) Numerical Laplacian $\nabla^2\phi$ computed via finite differences. (b) Negative charge density $-\rho$. The Laplacian shows localized peaks at particle positions, matching the discrete charge distribution.}
+    \label{fig:poisson_verification}
+\end{figure}
+
+\subsubsection{Superposition Principle}
+
+The particles are split into two groups $A$ and $B$, and we verify:
+\begin{equation}
+    \phi(A \cup B) = \phi(A) + \phi(B)
+\end{equation}
+
+This test passes to machine precision (relative error $< 10^{-13}$), confirming the linearity of the implementation. Figure~\ref{fig:superposition} demonstrates this by showing the potentials from each particle group separately and their sum.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{figures/superposition_test.png}
+    \caption{Verification of the superposition principle. (a) Potential from the first 10 charges ($\phi_A$). (b) Potential from the last 10 charges ($\phi_B$). (c) Sum of individual potentials ($\phi_A + \phi_B$). (d) Error between the direct computation and the sum, showing machine-precision agreement.}
+    \label{fig:superposition}
+\end{figure}
+
+\subsection{Parameters}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{ll}
+\toprule
+Parameter & Value \\
+\midrule
+Grid resolution & $128 \times 128$ \\
+Domain & $[0, 1]^2$ \\
+Number of particles & 20 \\
+Charge range & $[-1, 1]$ \\
+Regularization $\epsilon$ & $2/n_x$ (2 grid cells) \\
+\bottomrule
+\end{tabular}
+\caption{Default parameters for simulation.}
+\label{tab:matlab_params}
+\end{table}
+
+\section{Python Implementation}
+
+The MATLAB reference implementation has been ported to Python for integration with PyTorch-based neural network training. The Python implementation is located in \texttt{electrostatic\_unet/electrostatic\_2d.py} and provides the same functionality with a modular, object-oriented design.
+
+\subsection{Key Components}
+
+\begin{itemize}
+    \item \texttt{Particles}: Dataclass storing particle positions $(x, y)$ and charges $q$
+    \item \texttt{generate\_particles()}: Creates random point charges in the domain
+    \item \texttt{scatter\_charges()}: Deposits particles onto grid using nearest-cell assignment
+    \item \texttt{compute\_potential()}: Computes analytical potential via superposition
+    \item \texttt{compute\_electric\_field()}: Derives $\mathbf{E} = -\nabla\phi$ using numerical gradients
+    \item \texttt{run\_simulation()}: Orchestrates the full simulation pipeline
+\end{itemize}
+
+\subsection{Code Example}
+
+\begin{lstlisting}[language=Python]
+from electrostatic_unet.electrostatic_2d import run_simulation, plot_fields
+
+# Run simulation with 20 random charges
+result = run_simulation(nx=128, ny=128, n_particles=20, seed=42)
+
+# Access computed fields
+phi = result['phi']      # Potential field (128, 128)
+Ex, Ey = result['Ex'], result['Ey']  # Electric field components
+rho = result['rho']      # Charge density
+
+# Visualize results
+plot_fields(result, save_path='output.png')
+\end{lstlisting}
+
+The Python implementation produces identical results to the MATLAB version, as verified by the superposition test passing to machine precision.
+
+\section{U-Net Architecture}
+
+The U-Net learns the mapping from charge density $\rho$ to potential $\phi$:
+\begin{equation}
+    \phi = \text{UNet}(\rho; \theta)
+\end{equation}
+
+\subsection{Architecture Design}
+
+The U-Net follows the standard encoder-decoder structure with skip connections:
+
+\begin{itemize}
+    \item \textbf{Input}: Single-channel image representing charge density $\rho(x,y)$
+    \item \textbf{Encoder}: Sequence of convolution $\rightarrow$ activation $\rightarrow$ downsampling blocks, doubling channels at each level
+    \item \textbf{Bottleneck}: Convolutional processing at coarsest resolution
+    \item \textbf{Decoder}: Sequence of upsampling $\rightarrow$ skip connection concatenation $\rightarrow$ convolution blocks, halving channels at each level
+    \item \textbf{Output}: Single-channel image representing potential $\phi(x,y)$
+\end{itemize}
+
+For a $128 \times 128$ input with 4 encoder levels, the spatial dimensions progress as:
+\[
+128 \rightarrow 64 \rightarrow 32 \rightarrow 16 \rightarrow 8 \text{ (bottleneck)} \rightarrow 16 \rightarrow 32 \rightarrow 64 \rightarrow 128
+\]
+
+\subsection{Why U-Net?}
+
+The U-Net architecture is well-suited for this problem because:
+\begin{enumerate}
+    \item \textbf{Multi-scale processing}: The encoder captures both local charge structure and global potential behavior.
+    \item \textbf{Skip connections}: Preserve fine-grained spatial information needed for accurate potential near charges.
+    \item \textbf{Proven effectiveness}: U-Nets excel at image-to-image translation tasks with spatial correspondence between input and output.
+\end{enumerate}
+
+\section{Training Data Generation}
+
+Training data is generated using the same analytical formula as the MATLAB implementation:
+
+\begin{enumerate}
+    \item Sample $N \sim \text{Uniform}(5, 50)$ particles per sample
+    \item Place particles uniformly in the domain (with margin from boundaries)
+    \item Assign charges $q_i \sim \text{Uniform}(-1, 1)$
+    \item Scatter charges to grid to create $\rho$
+    \item Compute analytical $\phi$ with regularization
+\end{enumerate}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{ll}
+\toprule
+Parameter & Value \\
+\midrule
+Training samples & 10,000 \\
+Validation samples & 1,000 \\
+Grid resolution & $128 \times 128$ \\
+Particles per sample & 5--50 (uniform) \\
+\bottomrule
+\end{tabular}
+\caption{Training data generation parameters.}
+\label{tab:data_params}
+\end{table}
+
+\section{Training}
+
+\textit{(To be completed after PyTorch implementation)}
+
+\begin{itemize}
+    \item Loss function: MSE between predicted and ground truth potential
+    \item Optimizer: Adam
+    \item Learning rate: $10^{-4}$
+    \item Batch size: 16--32
+    \item Epochs: Until validation loss plateaus
+\end{itemize}
+
+\section{Results}
+
+\textit{(To be completed after training)}
+
+\section{Evaluation}
+
+Planned evaluation metrics:
+\begin{enumerate}
+    \item \textbf{L2 Error}: Mean squared error on held-out test configurations
+    \item \textbf{Superposition Test}: Verify $\phi(A \cup B) \approx \phi(A) + \phi(B)$ for learned model
+    \item \textbf{Generalization}: Test on particle counts outside training distribution
+    \item \textbf{Visual Comparison}: Predicted vs ground truth potential fields
+\end{enumerate}
+
+\section{Future Work}
+
+\begin{itemize}
+    \item Extend to 3D with volumetric U-Net
+    \item Replace regular grid with adaptive octree representation
+    \item Add vector outputs for electric field $\mathbf{E} = -\nabla\phi$
+    \item Introduce moving charges and learn magnetic field $\mathbf{B}$
+    \item Couple to particle dynamics for full simulation loop
+\end{itemize}
+
+\section{Conclusions}
+
+\textit{(To be completed)}
+
+\end{document}

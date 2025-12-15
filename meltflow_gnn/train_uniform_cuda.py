@@ -142,11 +142,17 @@ def load_data(
     """Load and prepare data for PyTorch training."""
 
     print(f"Loading data from {data_path}...")
-    data = np.load(data_path)
+    data = np.load(data_path, allow_pickle=True)
     X = data['inputs'].astype(np.float32)
     Y = data['outputs'].astype(np.float32)
 
-    print(f"  Loaded {len(X):,} samples")
+    # Check if gamma is included as input feature
+    input_dim = X.shape[1]
+    has_gamma = input_dim == 7
+    if has_gamma:
+        print(f"  Loaded {len(X):,} samples (includes gamma as 7th input)")
+    else:
+        print(f"  Loaded {len(X):,} samples")
 
     # Compute normalization stats
     stats = {}
@@ -171,6 +177,11 @@ def load_data(
 
         print(f"  Normalized: X mean={X.mean():.4f}, std={X.std():.4f}")
         print(f"              Y mean={Y.mean():.4f}, std={Y.std():.4f}")
+
+    # Store input/output dimensions in stats
+    stats['input_dim'] = input_dim
+    stats['output_dim'] = Y.shape[1]
+    stats['has_gamma'] = has_gamma
 
     # Shuffle and split
     n_samples = len(X)
@@ -207,7 +218,8 @@ def train(
     scheduler_type: str = 'cosine',
     warmup_epochs: int = 10,
     device: str = 'cuda',
-    verbose: bool = True
+    verbose: bool = True,
+    print_every: int = 10
 ) -> Dict:
     """Train the model with PyTorch - all data on GPU for speed."""
 
@@ -312,7 +324,7 @@ def train(
             best_state_dict = {k: v.cpu().clone() for k, v in model.state_dict().items()}
 
         # Print progress
-        if verbose and ((epoch + 1) % 10 == 0 or epoch == 0):
+        if verbose and ((epoch + 1) % print_every == 0 or epoch == 0):
             print(f"  Epoch {epoch+1:4d}/{n_epochs}: "
                   f"train={train_loss:.6f}, val={val_loss:.6f}, "
                   f"lr={current_lr:.2e}, time={epoch_time:.2f}s")
@@ -462,6 +474,8 @@ def main():
                         choices=['cosine', 'plateau', 'none'], help='LR scheduler')
     parser.add_argument('--val-split', type=float, default=0.1,
                         help='Validation split ratio')
+    parser.add_argument('--print-every', type=int, default=1,
+                        help='Print progress every N epochs')
     parser.add_argument('--output', type=str, default='flux_model_cuda.pt',
                         help='Output model path (.pt for PyTorch)')
     parser.add_argument('--output-npz', type=str, default='flux_model_cuda.npz',
@@ -499,24 +513,26 @@ def main():
     # Create model
     print("\n2. Creating model...")
     hidden_dims = [args.hidden_dim] * args.n_layers
+    input_dim = stats['input_dim']
+    output_dim = stats['output_dim']
 
     if args.residual:
         model = FluxMLPResidual(
-            input_dim=6,
-            output_dim=3,
+            input_dim=input_dim,
+            output_dim=output_dim,
             hidden_dim=args.hidden_dim,
             n_blocks=args.n_layers,
             activation=args.activation
         )
-        print(f"  Architecture: FluxMLPResidual (6 -> {args.hidden_dim}x{args.n_layers} residual blocks -> 3)")
+        print(f"  Architecture: FluxMLPResidual ({input_dim} -> {args.hidden_dim}x{args.n_layers} residual blocks -> {output_dim})")
     else:
         model = FluxMLP(
-            input_dim=6,
-            output_dim=3,
+            input_dim=input_dim,
+            output_dim=output_dim,
             hidden_dims=hidden_dims,
             activation=args.activation
         )
-        print(f"  Architecture: 6 -> {' -> '.join(map(str, hidden_dims))} -> 3")
+        print(f"  Architecture: {input_dim} -> {' -> '.join(map(str, hidden_dims))} -> {output_dim}")
 
     n_params = sum(p.numel() for p in model.parameters())
     print(f"  Parameters: {n_params:,}")
@@ -538,7 +554,8 @@ def main():
         weight_decay=args.weight_decay,
         scheduler_type=args.scheduler,
         device=args.device,
-        verbose=True
+        verbose=True,
+        print_every=args.print_every
     )
 
     total_time = time.time() - start_time
@@ -560,11 +577,12 @@ def main():
     # Save model
     print("\n5. Saving model...")
     config = {
-        'input_dim': 6,
-        'output_dim': 3,
+        'input_dim': input_dim,
+        'output_dim': output_dim,
         'hidden_dims': hidden_dims,
         'activation': args.activation,
-        'residual': args.residual
+        'residual': args.residual,
+        'has_gamma': stats.get('has_gamma', False)
     }
 
     # Save PyTorch format

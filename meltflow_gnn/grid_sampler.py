@@ -249,24 +249,36 @@ def expand_ranges(ranges: Dict[str, Tuple[float, float]],
 def generate_uniform_grid_samples(
     ranges: Dict[str, Tuple[float, float]],
     n_samples_per_dim: int = 10,
-    gam: float = 1.4
+    gam: float = 1.4,
+    gamma_values: Optional[List[float]] = None
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
-    Generate uniform grid samples over the 6D state space and compute Roe flux.
+    Generate uniform grid samples over the state space and compute Roe flux.
 
     Parameters
     ----------
     ranges : Dict
         Parameter ranges for rho, u, p
     n_samples_per_dim : int
-        Number of samples per dimension (total = n^6)
+        Number of samples per dimension
     gam : float
-        Specific heat ratio
+        Specific heat ratio (used if gamma_values is None)
+    gamma_values : List[float], optional
+        List of gamma values to sample. If provided, gamma becomes an input feature
+        and the output includes samples for all gamma values.
+        Typical range: [1.2, 1.7] covers most practical gases:
+        - 1.67: Monatomic gases (He, Ar, Ne)
+        - 1.4: Diatomic gases (air, N2, O2)
+        - 1.3: Triatomic gases (CO2, H2O vapor)
+        - 1.1-1.2: Complex molecules, combustion products
 
     Returns
     -------
     Tuple[np.ndarray, np.ndarray]
-        inputs: Shape (N, 6) - [rho_L, u_L, p_L, rho_R, u_R, p_R]
+        If gamma_values is None:
+            inputs: Shape (N, 6) - [rho_L, u_L, p_L, rho_R, u_R, p_R]
+        If gamma_values is provided:
+            inputs: Shape (N, 7) - [rho_L, u_L, p_L, rho_R, u_R, p_R, gamma]
         outputs: Shape (N, 3) - [flux_rho, flux_rhou, flux_E]
     """
     # Create 1D grids for each variable
@@ -274,41 +286,56 @@ def generate_uniform_grid_samples(
     u_grid = np.linspace(ranges['u'][0], ranges['u'][1], n_samples_per_dim)
     p_grid = np.linspace(ranges['p'][0], ranges['p'][1], n_samples_per_dim)
 
-    total_samples = n_samples_per_dim ** 6
-    print(f"Generating {total_samples:,} samples ({n_samples_per_dim}^6)...")
+    # Determine gamma values to use
+    if gamma_values is None:
+        gamma_list = [gam]
+        include_gamma_input = False
+    else:
+        gamma_list = gamma_values
+        include_gamma_input = True
+
+    total_samples = n_samples_per_dim ** 6 * len(gamma_list)
+    print(f"Generating {total_samples:,} samples ({n_samples_per_dim}^6 x {len(gamma_list)} gamma values)...")
+    if include_gamma_input:
+        print(f"  Gamma values: {gamma_list}")
 
     inputs = []
     outputs = []
     valid_count = 0
     invalid_count = 0
 
-    # Nested loops over all 6 dimensions
-    for rho_L in rho_grid:
-        for u_L in u_grid:
-            for p_L in p_grid:
-                for rho_R in rho_grid:
-                    for u_R in u_grid:
-                        for p_R in p_grid:
-                            # Convert to conserved variables
-                            W_L = prim_to_cons(rho_L, u_L, p_L, gam)
-                            W_R = prim_to_cons(rho_R, u_R, p_R, gam)
+    # Loop over gamma values (outermost for efficiency)
+    for gamma in gamma_list:
+        # Nested loops over all 6 state dimensions
+        for rho_L in rho_grid:
+            for u_L in u_grid:
+                for p_L in p_grid:
+                    for rho_R in rho_grid:
+                        for u_R in u_grid:
+                            for p_R in p_grid:
+                                # Convert to conserved variables
+                                W_L = prim_to_cons(rho_L, u_L, p_L, gamma)
+                                W_R = prim_to_cons(rho_R, u_R, p_R, gamma)
 
-                            try:
-                                # Compute Roe flux
-                                flux = roe_flux1D(n_dim=1, gam=gam, W_L=W_L, W_R=W_R)
+                                try:
+                                    # Compute Roe flux
+                                    flux = roe_flux1D(n_dim=1, gam=gamma, W_L=W_L, W_R=W_R)
 
-                                # Check for NaN or Inf
-                                if np.any(np.isnan(flux)) or np.any(np.isinf(flux)):
+                                    # Check for NaN or Inf
+                                    if np.any(np.isnan(flux)) or np.any(np.isinf(flux)):
+                                        invalid_count += 1
+                                        continue
+
+                                    if include_gamma_input:
+                                        inputs.append([rho_L, u_L, p_L, rho_R, u_R, p_R, gamma])
+                                    else:
+                                        inputs.append([rho_L, u_L, p_L, rho_R, u_R, p_R])
+                                    outputs.append(flux)
+                                    valid_count += 1
+
+                                except Exception as e:
                                     invalid_count += 1
                                     continue
-
-                                inputs.append([rho_L, u_L, p_L, rho_R, u_R, p_R])
-                                outputs.append(flux)
-                                valid_count += 1
-
-                            except Exception as e:
-                                invalid_count += 1
-                                continue
 
     print(f"Generated {valid_count:,} valid samples, {invalid_count:,} invalid samples")
 
@@ -319,6 +346,7 @@ def generate_uniform_flux_dataset(
     n_samples_per_dim: int = 10,
     expansion_factor: float = 1.0,
     gam: float = 1.4,
+    gamma_values: Optional[List[float]] = None,
     save_path: Optional[str] = None,
     use_simulation_ranges: bool = False,
     config_name: str = 'in_1Dsod1fl'
@@ -329,11 +357,15 @@ def generate_uniform_flux_dataset(
     Parameters
     ----------
     n_samples_per_dim : int
-        Samples per dimension (total = n^6)
+        Samples per dimension (total = n^6, or n^6 * n_gamma if gamma_values provided)
     expansion_factor : float
         Range expansion factor (1.0 = no expansion)
     gam : float
-        Specific heat ratio
+        Specific heat ratio (used if gamma_values is None)
+    gamma_values : List[float], optional
+        List of gamma values to include in training data.
+        If provided, gamma becomes an input feature (7 inputs instead of 6).
+        Example: [1.2, 1.3, 1.4, 1.5, 1.67] covers most practical gases.
     save_path : str, optional
         Path to save the dataset
     use_simulation_ranges : bool
@@ -362,12 +394,23 @@ def generate_uniform_flux_dataset(
     inputs, outputs = generate_uniform_grid_samples(
         expanded_ranges,
         n_samples_per_dim=n_samples_per_dim,
-        gam=gam
+        gam=gam,
+        gamma_values=gamma_values
     )
 
     # Step 4: Save if requested
     if save_path:
-        np.savez(save_path, inputs=inputs, outputs=outputs, ranges=expanded_ranges)
+        save_data = {
+            'inputs': inputs,
+            'outputs': outputs,
+            'ranges': expanded_ranges
+        }
+        if gamma_values is not None:
+            save_data['gamma_values'] = np.array(gamma_values)
+            save_data['has_gamma_input'] = True
+        else:
+            save_data['has_gamma_input'] = False
+        np.savez(save_path, **save_data)
         print(f"Saved dataset to {save_path}")
 
     return inputs, outputs
@@ -434,7 +477,11 @@ if __name__ == '__main__':
     parser.add_argument('--expansion', type=float, default=1.0,
                         help='Range expansion factor (1.0 = no expansion)')
     parser.add_argument('--gamma', type=float, default=1.4,
-                        help='Specific heat ratio')
+                        help='Specific heat ratio (used if --gamma-values not specified)')
+    parser.add_argument('--gamma-values', type=float, nargs='+', default=None,
+                        help='Multiple gamma values to sample (e.g., --gamma-values 1.2 1.3 1.4 1.5 1.67). '
+                             'If specified, gamma becomes an input feature. '
+                             'Covers: 1.67 (monatomic), 1.4 (diatomic/air), 1.3 (triatomic), 1.1-1.2 (complex)')
     parser.add_argument('--output', type=str, default='data/uniform_flux_data.npz',
                         help='Output file path')
     parser.add_argument('--use-simulation', action='store_true',
@@ -452,6 +499,7 @@ if __name__ == '__main__':
         n_samples_per_dim=args.n_samples,
         expansion_factor=args.expansion,
         gam=args.gamma,
+        gamma_values=args.gamma_values,
         save_path=args.output,
         use_simulation_ranges=args.use_simulation,
         config_name=args.config
@@ -460,8 +508,15 @@ if __name__ == '__main__':
     print(f"\nDataset summary:")
     print(f"  Input shape: {inputs.shape}")
     print(f"  Output shape: {outputs.shape}")
+
+    # Determine input variable names based on whether gamma is included
+    if args.gamma_values is not None:
+        input_names = ['rho_L', 'u_L', 'p_L', 'rho_R', 'u_R', 'p_R', 'gamma']
+    else:
+        input_names = ['rho_L', 'u_L', 'p_L', 'rho_R', 'u_R', 'p_R']
+
     print(f"  Input ranges:")
-    for i, name in enumerate(['rho_L', 'u_L', 'p_L', 'rho_R', 'u_R', 'p_R']):
+    for i, name in enumerate(input_names):
         print(f"    {name}: [{inputs[:, i].min():.6g}, {inputs[:, i].max():.6g}]")
     print(f"  Output ranges:")
     for i, name in enumerate(['flux_rho', 'flux_rhou', 'flux_E']):

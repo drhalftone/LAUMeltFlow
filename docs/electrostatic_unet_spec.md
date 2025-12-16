@@ -146,20 +146,26 @@ Level 3 (leaves):   [MLP_3] [MLP_3]   ← same network, all leaf voxels
 
 Information flows from particles up through the hierarchy:
 
-1. **Particle → Hidden**: MLP encodes particle features (x, y, q) → hidden state
-2. **Particles → Leaf Voxel**: Scatter with mean aggregation (permutation invariant)
-3. **Child → Parent**: Scatter children to parent voxels with mean aggregation
+1. **Particle → Hidden**: MLP encodes particle features (x, y, q, rel_x, rel_y) → hidden state
+2. **Particles → Leaf Voxel**: Scatter with sum aggregation (preserves particle count information)
+3. **Child → Parent**: Scatter children to parent voxels with sum aggregation
 4. **Level MLP**: Apply level-specific MLP to aggregated state
 5. Repeat until root
 
 ```python
-h_particles = particle_encoder(particles)           # (N, hidden)
-h_leaves = scatter_mean(h_particles, particle_to_leaf)  # (n_leaves, hidden)
+# Relative position encoding
+relative_pos = positions - leaf_centers[particle_to_leaf]
+particles_augmented = concat(particles, relative_pos)  # (N, 5)
+
+h_particles = particle_encoder(particles_augmented)    # (N, hidden)
+h_leaves = scatter_sum(h_particles, particle_to_leaf)  # (n_leaves, hidden)
 
 for level in range(max_depth, 0, -1):
-    h = scatter_mean(h, child_to_parent[level])
+    h = scatter_sum(h, child_to_parent[level])
     h = encoders[level-1](h)
 ```
+
+**Why sum aggregation?** Mean aggregation loses information about how many particles contributed. Sum preserves this, which is physically meaningful: the total field contribution from a voxel depends on both the charges and the number of particles.
 
 ### Decoder (Gather / Down-Pass)
 
@@ -190,25 +196,40 @@ Like a U-Net, each level has skip connections between encoder and decoder:
 
 ## Data Generation
 
-Training data uses analytical Coulomb field:
+Training data uses analytical Coulomb field computed via brute-force O(N²) pairwise summation:
 
-1. Generate N random particles in [0, 1]² with charges in [-1, 1]
-2. Compute ground truth E field using vectorized pairwise computation
-3. Network learns: particles → E field
+**Input**: N random particles in [0, 1]² with charges in [-1, 1]
+**Output**: Ground truth E field at each particle location
 
 ```python
-# Vectorized 2D Coulomb field
-r = positions.unsqueeze(1) - positions.unsqueeze(0)  # (N, N, 2)
-r_mag = torch.norm(r, dim=-1)  # (N, N)
-E = (charges * r / r_mag**2).sum(dim=1)  # (N, 2)
+# Vectorized 2D Coulomb field - O(N²) computation
+r = positions.unsqueeze(1) - positions.unsqueeze(0)  # (N, N, 2) displacement vectors
+r_mag = torch.norm(r, dim=-1)  # (N, N) distances
+
+# E_i = Σ_{j≠i} q_j * r_ij / |r_ij|²
+E_contributions = charges * r / r_mag**2  # (N, N, 2)
+E = E_contributions.sum(dim=1)  # (N, 2) - sum over all j
 ```
+
+The key insight is that ground truth computation is O(N²), but the trained network approximates this with O(N log N) complexity using the hierarchical structure—similar to how Barnes-Hut or Fast Multipole Methods work, but with learned rather than analytical approximations.
 
 ## Training
 
+**Training Loop**:
+1. Generate random particle configuration (positions + charges)
+2. Compute ground truth E field using O(N²) Coulomb summation
+3. Build quadtree from particle positions
+4. Forward pass through H²GNN → predicted E field
+5. Compute loss = MSE(E_pred, E_true)
+6. Backpropagate and update weights
+
+**Hyperparameters**:
 - **Loss**: MSE between predicted and ground truth E field
 - **Optimizer**: Adam with learning rate ~1e-4
-- **Scheduler**: ReduceLROnPlateau
+- **Scheduler**: ReduceLROnPlateau (halve LR on plateau)
 - **Checkpointing**: Best model and periodic saves
+
+**Goal**: Train the network to approximate the expensive O(N²) Coulomb computation using the efficient O(N log N) hierarchical structure. Once trained, inference is fast.
 
 ## Evaluation
 
@@ -235,7 +256,7 @@ E = (charges * r / r_mag**2).sum(dim=1)  # (N, 2)
 3. **Magnetic fields**: Include Biot-Savart and Lorentz force
 4. **Adaptive refinement**: Dynamic octree depth based on particle density
 5. **Hybrid methods**: Combine with analytical short-range forces
-6. **Attention aggregation**: Replace mean with attention-based pooling
+6. **Attention aggregation**: Add attention-weighted pooling alongside sum
 
 ## Success Criteria
 

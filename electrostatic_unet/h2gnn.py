@@ -68,6 +68,7 @@ class H2GNN(nn.Module):
     - Encoder: particles -> leaf voxels -> ... -> root (scatter/aggregate)
     - Decoder: root -> ... -> leaf voxels -> particles (broadcast/gather)
     - Skip connections at each level
+    - Relative position encoding: particle position relative to voxel center
 
     Weight sharing: same MLP for all voxels at each level.
     Sparse processing: only active voxels are computed.
@@ -84,10 +85,12 @@ class H2GNN(nn.Module):
         super().__init__()
         self.max_depth = max_depth
         self.hidden_dim = hidden_dim
+        self.particle_dim = particle_dim
 
         # Encoder: particles -> hidden
+        # Input: (x, y, q, rel_x, rel_y) = particle_dim + 2 for relative position
         self.particle_encoder = MLP(
-            particle_dim, hidden_dim, hidden_dim, n_mlp_layers
+            particle_dim + 2, hidden_dim, hidden_dim, n_mlp_layers
         )
 
         # Encoder MLPs (one per level, shared across voxels at that level)
@@ -105,9 +108,9 @@ class H2GNN(nn.Module):
         ])
 
         # Decoder: leaf voxel states -> particle E field
-        # Input: leaf_hidden + particle_features (skip connection)
+        # Input: leaf_hidden + particle_features + relative_position
         self.particle_decoder = MLP(
-            hidden_dim + particle_dim, output_dim, hidden_dim, n_mlp_layers
+            hidden_dim + particle_dim + 2, output_dim, hidden_dim, n_mlp_layers
         )
 
     def forward(
@@ -127,13 +130,26 @@ class H2GNN(nn.Module):
         """
         max_depth = self.max_depth
 
+        # ============== RELATIVE POSITION ENCODING ==============
+
+        # Get particle positions and leaf voxel centers
+        positions = particles[:, :2]  # (N, 2)
+        particle_to_leaf = quadtree.get_particle_to_leaf()
+        leaf_centers = quadtree.get_voxel_centers(max_depth)  # (n_leaves, 2)
+
+        # Compute relative position: particle pos - voxel center
+        particle_leaf_centers = leaf_centers[particle_to_leaf]  # (N, 2)
+        relative_pos = positions - particle_leaf_centers  # (N, 2)
+
+        # Augment particle features with relative position
+        particles_augmented = torch.cat([particles, relative_pos], dim=-1)  # (N, 5)
+
         # ============== ENCODER (scatter up) ==============
 
-        # Particles -> hidden features
-        h_particles = self.particle_encoder(particles)  # (N, hidden)
+        # Particles -> hidden features (with relative position)
+        h_particles = self.particle_encoder(particles_augmented)  # (N, hidden)
 
         # Scatter particles to leaf voxels (sum aggregation)
-        particle_to_leaf = quadtree.get_particle_to_leaf()
         n_leaves = quadtree.num_active(max_depth)
         h_leaves = scatter_sum(h_particles, particle_to_leaf, n_leaves)
 
@@ -177,8 +193,8 @@ class H2GNN(nn.Module):
         # Gather: broadcast leaf state to particles
         h_to_particles = h[particle_to_leaf]  # (N, hidden)
 
-        # Concat with original particle features (final skip connection)
-        h_final = torch.cat([h_to_particles, particles], dim=-1)
+        # Concat with augmented particle features (includes relative position)
+        h_final = torch.cat([h_to_particles, particles_augmented], dim=-1)
 
         # Output E field
         E = self.particle_decoder(h_final)  # (N, 2)

@@ -1,112 +1,245 @@
-# 2D Electrostatic Potential U-Net
+# Hierarchical Hypergraph Neural Network for Electromagnetic Particle Simulation
 
 ## Overview
 
-This project implements a U-Net neural network that learns to compute electrostatic potential from point charge distributions in 2D. This serves as a foundational step toward more complex particle-field simulations, eventually including magnetic fields derived from moving charged particles.
+This project implements a hierarchical hypergraph neural network (H²GNN) that learns electromagnetic interactions between charged particles. The architecture uses a quadtree/octree spatial hierarchy where particles are nodes and voxels at each level serve as hyperedges, enabling efficient multi-scale message passing with sparse processing of only occupied regions.
+
+**Current implementation**: 2D electrostatics with quadtree (extensible to 3D octree).
+
+## Implementation Status
+
+### Completed (v1.0)
+
+- **Quadtree**: Sparse 2D spatial hierarchy, only tracks active voxels
+- **H2GNN Model**: Encoder-decoder with weight-shared MLPs per level
+- **Dataset**: Vectorized 2D Coulomb field computation
+- **Training**: Full training loop with validation and checkpointing
+- **Evaluation**: Visualization and metrics
+
+### Files
+
+```
+electrostatic_unet/
+├── __init__.py        # Package exports
+├── quadtree.py        # Sparse quadtree data structure
+├── h2gnn.py           # H²GNN model architecture
+├── dataset.py         # Data generation with Coulomb field
+├── train.py           # Training loop
+└── evaluate.py        # Visualization and metrics
+```
+
+## Quick Start
+
+**Train:**
+```bash
+python -m electrostatic_unet.train --epochs 100 --n-train 1000
+```
+
+**Evaluate:**
+```bash
+python -m electrostatic_unet.evaluate --checkpoint checkpoints/h2gnn_best.pt
+```
+
+**Test modules:**
+```python
+from electrostatic_unet.quadtree import test_quadtree
+from electrostatic_unet.h2gnn import test_h2gnn
+from electrostatic_unet.dataset import test_dataset
+
+test_quadtree()
+test_h2gnn()
+test_dataset()
+```
 
 ## Motivation
 
-We are exploring the intersection of graph neural networks and particle simulations. The eventual goal is a system where:
+We aim to build a neural network-based particle simulation system where:
 
-1. Charged particles scatter their state onto a spatial hierarchy (octree in 3D)
-2. A U-Net processes this representation to derive electromagnetic fields
-3. Particles gather field values to compute forces and update trajectories
+1. Charged particles exist as graph nodes with state (position, charge, ...)
+2. A quadtree/octree partitions space into a hierarchy of voxels
+3. Voxels act as hyperedges connecting the particles (or child voxels) they contain
+4. Message passing propagates information up and down the hierarchy
+5. Particles receive electric field predictions based on local and global information
 
-Before tackling the full 3D magnetic field problem, we start with the simplest nontrivial case: learning the 2D electrostatic potential from static point charges.
+This approach offers several advantages over traditional methods:
+- **Adaptive resolution**: Quadtree provides fine detail where particles cluster
+- **Sparse processing**: Empty voxels are skipped entirely
+- **Learned physics**: Network learns electromagnetic interactions from data
+- **End-to-end differentiable**: Enables gradient-based optimization
 
 ## Physics Background
 
-The electrostatic potential in 2D from point charges is:
+For static charged particles, the electric field is governed by Coulomb's law.
 
-$$\phi(\mathbf{r}) = \sum_i \frac{q_i}{2\pi\epsilon_0} \ln\left(\frac{1}{|\mathbf{r} - \mathbf{r}_i|}\right)$$
+**2D Coulomb's law** (current implementation):
+$$\mathbf{E}_i = \sum_{j \neq i} \frac{q_j (\mathbf{r}_i - \mathbf{r}_j)}{|\mathbf{r}_i - \mathbf{r}_j|^2}$$
 
-For simplicity, we absorb constants and use:
+**3D Coulomb's law** (future):
+$$\mathbf{E}_i = \sum_{j \neq i} \frac{q_j (\mathbf{r}_i - \mathbf{r}_j)}{|\mathbf{r}_i - \mathbf{r}_j|^3}$$
 
-$$\phi(\mathbf{r}) = -\sum_i q_i \ln(|\mathbf{r} - \mathbf{r}_i|)$$
-
-This potential satisfies Poisson's equation in 2D:
-
-$$\nabla^2 \phi = -\rho / \epsilon_0$$
-
-The U-Net learns to approximate the solution operator: given a charge density field ρ, output the potential field φ.
+The hierarchical structure naturally captures the multi-scale nature of these interactions: nearby particles interact strongly (fine voxels), while distant particles contribute through aggregated effects (coarse voxels).
 
 ## Architecture
 
-### Input (Scatter Step)
+### Current Configuration
 
-- Domain: 2D square grid, e.g., 128×128 or 256×256
-- Particles have position (x, y) and charge q
-- Each particle deposits its charge onto the grid using bilinear interpolation (or nearest-cell assignment for simplicity)
-- Input tensor: single-channel image representing charge density ρ(x, y)
+- **Dimensions**: 2D (quadtree) - 3D octree planned
+- **Particles**: 10-100 per sample
+- **Quadtree depth**: 4 levels (16×16 leaf resolution)
+- **Input**: N particles with (x, y, q)
+- **Output**: N electric field vectors (Ex, Ey)
 
-### U-Net
+### Nodes: Charged Particles
 
-Standard encoder-decoder architecture:
+Each particle is a node with feature vector:
+- Position: $(x, y)$ [or $(x, y, z)$ in 3D]
+- Charge: $q$
+- (Future) Velocity, acceleration, mass
 
-- **Encoder**: Sequence of conv → ReLU → conv → ReLU → downsample (max pool or strided conv), doubling channels at each level
-- **Bottleneck**: Convolutional processing at coarsest resolution
-- **Decoder**: Sequence of upsample → concat skip connection → conv → ReLU → conv → ReLU, halving channels at each level
-- **Output**: Single-channel image representing potential φ(x, y)
+### Hyperedges: Quadtree Voxels
 
-Suggested depth: 4 levels (e.g., 128 → 64 → 32 → 16 → 8 at bottleneck for 128×128 input)
+The spatial domain is partitioned by a quadtree. Each voxel at each level acts as a hyperedge:
 
-### Output (Gather Step)
+```
+Level 0 (root):     [────────────]     1 voxel covering entire domain
+                          ↓
+Level 1:            [──────][──────]   4 child voxels (2²)
+                       ↓        ↓
+Level 2:            [──][──] [──][──]  16 voxels (4²)
+                     ↓   ↓
+Level 3 (leaves):   [·][·]             64 voxels (8²) - finest level
+                     ↓
+                   p1,p2               Particles as nodes
+```
 
-For this initial version, we simply output the full potential field. Later, particles would query this field via bilinear interpolation to get potential (or its gradient for force).
+**Key properties**:
+- Leaf voxels connect 0, 1, or more particles (hyperedge)
+- Parent voxels connect their 4 child voxels (hyperedge) [8 in 3D]
+- Empty voxels (no particles in subtree) are not processed
+
+### Sparse Processing
+
+Only "active" voxels are processed:
+- A leaf voxel is active if it contains ≥1 particle
+- A non-leaf voxel is active if it has ≥1 active child
+
+This gives O(N log N) complexity for N particles, similar to Barnes-Hut or FMM methods, rather than O(V) for V total voxels.
+
+### Weight Sharing
+
+Each level has its own MLP weights, shared across all voxels at that level:
+- **Translation invariant**: Same processing regardless of voxel position
+- **Parameter efficient**: Only need L networks for L levels
+- **Scale-appropriate**: Each level learns operations suited to its spatial scale
+
+```
+Level 0 (root):     [MLP_0]           ← one network for root
+                       ↓
+Level 1:            [MLP_1] [MLP_1]   ← same network, all level-1 voxels
+                       ↓       ↓
+Level 2:            [MLP_2] [MLP_2]   ← same network, all level-2 voxels
+                       ↓
+Level 3 (leaves):   [MLP_3] [MLP_3]   ← same network, all leaf voxels
+```
+
+### Encoder (Scatter / Up-Pass)
+
+Information flows from particles up through the hierarchy:
+
+1. **Particle → Hidden**: MLP encodes particle features (x, y, q) → hidden state
+2. **Particles → Leaf Voxel**: Scatter with mean aggregation (permutation invariant)
+3. **Child → Parent**: Scatter children to parent voxels with mean aggregation
+4. **Level MLP**: Apply level-specific MLP to aggregated state
+5. Repeat until root
+
+```python
+h_particles = particle_encoder(particles)           # (N, hidden)
+h_leaves = scatter_mean(h_particles, particle_to_leaf)  # (n_leaves, hidden)
+
+for level in range(max_depth, 0, -1):
+    h = scatter_mean(h, child_to_parent[level])
+    h = encoders[level-1](h)
+```
+
+### Decoder (Gather / Down-Pass)
+
+Information flows from root back down to particles:
+
+1. **Parent → Child**: Gather (broadcast) parent state to children
+2. **Skip Connection**: Concatenate with encoder state at same level
+3. **Level MLP**: Apply level-specific decoder MLP
+4. Repeat until leaf voxels
+5. **Leaf → Particle**: Gather leaf state to particles
+6. **Output MLP**: Predict E field from (leaf_hidden, particle_features)
+
+```python
+for level in range(1, max_depth + 1):
+    h_broadcast = h[parent_to_children[level]]
+    h = decoders[level-1](concat(h_broadcast, encoder_states[level]))
+
+h_to_particles = h[particle_to_leaf]
+E = particle_decoder(concat(h_to_particles, particles))  # (N, 2)
+```
+
+### Skip Connections
+
+Like a U-Net, each level has skip connections between encoder and decoder:
+- Encoder state at level L is concatenated with decoder input at level L
+- Final particle output includes original (x, y, q) features
+- Preserves fine-grained spatial information through the bottleneck
 
 ## Data Generation
 
-Training data is generated analytically:
+Training data uses analytical Coulomb field:
 
-1. Sample N particles uniformly in the domain (N ~ 5-50, varied per sample)
-2. Assign random charges q ∈ [-1, 1] to each particle
-3. Compute charge density grid via scatter operation
-4. Compute ground truth potential at each grid point using the analytical formula
-5. Apply regularization: clamp minimum distance to avoid singularities at particle centers (e.g., |r - r_i| → max(|r - r_i|, ε) where ε ~ 1-2 grid cells)
+1. Generate N random particles in [0, 1]² with charges in [-1, 1]
+2. Compute ground truth E field using vectorized pairwise computation
+3. Network learns: particles → E field
 
-Generate ~10,000 training samples, ~1,000 validation samples.
+```python
+# Vectorized 2D Coulomb field
+r = positions.unsqueeze(1) - positions.unsqueeze(0)  # (N, N, 2)
+r_mag = torch.norm(r, dim=-1)  # (N, N)
+E = (charges * r / r_mag**2).sum(dim=1)  # (N, 2)
+```
 
 ## Training
 
-- **Loss**: MSE between predicted and ground truth potential
-- **Optimizer**: Adam, learning rate ~1e-4
-- **Batch size**: 16-32
-- **Epochs**: Until validation loss plateaus (~50-200 epochs depending on complexity)
+- **Loss**: MSE between predicted and ground truth E field
+- **Optimizer**: Adam with learning rate ~1e-4
+- **Scheduler**: ReduceLROnPlateau
+- **Checkpointing**: Best model and periodic saves
 
-Optional: normalize potential fields to zero mean or bounded range to aid training stability.
+## Evaluation
 
-## Evaluation Metrics
+1. **MSE/RMSE**: Mean squared error on E field
+2. **MAE**: Mean absolute error
+3. **Relative Error**: Error normalized by field magnitude
+4. **Visualization**: Side-by-side ground truth vs predicted E vectors
 
-1. **L2 error**: Mean squared error on held-out test configurations
-2. **Superposition test**: Generate potential for charge set A, charge set B, and A∪B; verify φ(A∪B) ≈ φ(A) + φ(B)
-3. **Visual inspection**: Plot predicted vs ground truth for qualitative assessment
-4. **Generalization**: Test on configurations with more/fewer particles than training distribution
+## Comparison: H²GNN vs Convolutional U-Net
 
-## Implementation Requirements
-
-- **Framework**: PyTorch
-- **Visualization**: Matplotlib for plotting charge distributions and potential fields
-- **Structure**:
-  - `dataset.py`: Data generation and PyTorch Dataset class
-  - `model.py`: U-Net architecture
-  - `train.py`: Training loop
-  - `evaluate.py`: Testing and visualization
-  - `utils.py`: Scatter/gather operations, potential computation
+| Aspect | Convolutional U-Net | H²GNN (This Project) |
+|--------|---------------------|----------------------|
+| Input | Fixed grid (charge density) | Variable particle set |
+| Layers | 2D/3D convolutions | Hypergraph message passing |
+| Processing | Dense (all grid cells) | Sparse (active voxels only) |
+| Resolution | Fixed grid size | Adaptive quadtree/octree |
+| Output | Field on grid | E field at particles |
+| Complexity | O(grid size) | O(N log N) for N particles |
 
 ## Future Extensions
 
-Once this baseline works:
-
-1. Move to 3D with regular grid
-2. Replace regular grid with octree for adaptive resolution
-3. Add vector outputs (electric field E = -∇φ)
-4. Introduce time-varying charges (currents) and learn magnetic field B
-5. Couple back to particle dynamics for full simulation loop
+1. **3D Octree**: Extend to 3D with 8 children per voxel
+2. **Moving charges**: Add velocity, acceleration; predict trajectories
+3. **Magnetic fields**: Include Biot-Savart and Lorentz force
+4. **Adaptive refinement**: Dynamic octree depth based on particle density
+5. **Hybrid methods**: Combine with analytical short-range forces
+6. **Attention aggregation**: Replace mean with attention-based pooling
 
 ## Success Criteria
 
-The model successfully learns the mapping ρ → φ when:
-
-- Test MSE is significantly lower than a naive baseline (e.g., predicting mean potential)
-- Superposition property holds approximately
-- Visual predictions show correct qualitative structure (potential wells at positive charges, peaks at negative charges, smooth interpolation between)
+1. E field prediction accuracy significantly better than baseline
+2. Generalization to unseen particle counts and configurations
+3. Computational efficiency: sparse processing scales with O(N log N)
+4. Extensibility to 3D and dynamic simulations

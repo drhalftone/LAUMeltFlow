@@ -11,6 +11,8 @@
 \usepackage{subcaption}
 \usepackage{listings}
 \usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{shapes,arrows,positioning,fit,backgrounds}
 
 \lstset{
     basicstyle=\ttfamily\small,
@@ -19,7 +21,7 @@
     breaklines=true
 }
 
-\title{Learning Electrostatic Potential with U-Net:\\From Point Charges to Neural Field Solvers}
+\title{Hierarchical Hypergraph Neural Network\\for Electromagnetic Particle Simulation}
 \author{LAUMeltFlow Project}
 \date{\today}
 
@@ -28,217 +30,316 @@
 \maketitle
 
 \begin{abstract}
-This report documents the development of a U-Net neural network that learns to compute electrostatic potential from point charge distributions in 2D. We begin with an analytical reference implementation in MATLAB, then develop a PyTorch-based U-Net to learn the mapping from charge density $\rho$ to potential $\phi$. This serves as a foundation for more complex particle-field simulations, including future extensions to 3D and electromagnetic fields from moving charges.
+This report describes a hierarchical hypergraph neural network (H$^2$GNN) architecture for learning electromagnetic interactions between charged particles. Unlike conventional grid-based approaches that discretize fields onto fixed grids, our method treats particles as graph nodes and uses octree voxels as hyperedges to enable efficient multi-scale message passing. The architecture follows a U-Net-like encoder-decoder structure where information flows from particles up through the spatial hierarchy (scatter) and back down to update particle states (gather). Sparse processing ensures that only voxels containing particles are computed, yielding O($N \log N$) complexity.
 \end{abstract}
 
 \section{Introduction}
 
-The computation of electromagnetic fields from charged particle distributions is fundamental to many physics simulations, from plasma physics to molecular dynamics. Traditional approaches solve Poisson's equation numerically using methods like finite differences, finite elements, or spectral methods. We explore whether a neural network can learn this mapping directly, potentially offering advantages in speed or flexibility.
+Simulating electromagnetic interactions between charged particles is fundamental to plasma physics, molecular dynamics, and astrophysics. Traditional approaches either compute pairwise forces directly (O($N^2$) complexity) or solve field equations on fixed grids using methods like particle-in-cell (PIC). We explore a neural network approach that learns the particle-to-particle interaction mapping directly.
 
 \subsection{Motivation}
 
-The eventual goal is a system where:
+The goal is a learned simulation system where:
 \begin{enumerate}
-    \item Charged particles scatter their state onto a spatial hierarchy (quadtree in 2D, octree in 3D)
-    \item A neural network processes this representation to derive electromagnetic fields
-    \item Particles gather field values to compute forces and update trajectories
+    \item Charged particles exist as nodes with state vectors (position, velocity, acceleration, charge)
+    \item An octree partitions space into a hierarchy of voxels
+    \item Voxels act as hyperedges connecting particles or child voxels
+    \item Message passing propagates information through the hierarchy
+    \item Particles update their state based on aggregated local and global information
 \end{enumerate}
 
-Before tackling the full problem, we start with the simplest nontrivial case: learning the 2D electrostatic potential from static point charges.
+This approach offers key advantages:
+\begin{itemize}
+    \item \textbf{Adaptive resolution}: Octree provides fine detail where particles cluster
+    \item \textbf{Sparse processing}: Empty voxels are skipped entirely
+    \item \textbf{Learned physics}: Network learns interactions from data
+    \item \textbf{End-to-end differentiable}: Enables gradient-based optimization
+\end{itemize}
 
 \subsection{Physics Background}
 
-The electrostatic potential in 2D from point charges is given by:
+For charged particles, the electromagnetic forces are governed by:
+
+\textbf{Electrostatics (Coulomb's law)}:
+\begin{equation}
+    \mathbf{F}_i = q_i \sum_{j \neq i} \frac{q_j (\mathbf{r}_i - \mathbf{r}_j)}{|\mathbf{r}_i - \mathbf{r}_j|^3}
+\end{equation}
+
+\textbf{Magnetostatics (Biot-Savart)}:
+\begin{equation}
+    \mathbf{B}(\mathbf{r}) = \frac{\mu_0}{4\pi} \sum_j \frac{q_j \mathbf{v}_j \times (\mathbf{r} - \mathbf{r}_j)}{|\mathbf{r} - \mathbf{r}_j|^3}
+\end{equation}
+
+\textbf{Lorentz force}:
+\begin{equation}
+    \mathbf{F} = q(\mathbf{E} + \mathbf{v} \times \mathbf{B})
+\end{equation}
+
+The hierarchical structure naturally captures the multi-scale nature of these interactions: nearby particles interact strongly through fine voxels, while distant particles contribute through aggregated effects at coarser levels.
+
+\section{Architecture}
+
+\subsection{Hypergraph Structure}
+
+The architecture is built on a hypergraph where:
+\begin{itemize}
+    \item \textbf{Nodes}: Charged particles with feature vectors
+    \item \textbf{Hyperedges}: Octree voxels at each level of the hierarchy
+\end{itemize}
+
+Unlike standard graphs where edges connect exactly two nodes, hyperedges can connect any number of nodes. A leaf voxel connects all particles it contains (0, 1, or more). A parent voxel connects its child voxels.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    level/.style={sibling distance=40mm/#1},
+    voxel/.style={rectangle, draw, minimum width=1.5cm, minimum height=0.6cm, fill=blue!10},
+    particle/.style={circle, draw, fill=red!30, minimum size=0.5cm},
+    arrow/.style={->, >=stealth, thick}
+]
+
+% Root
+\node[voxel] (root) {Root Voxel};
+
+% Level 1
+\node[voxel, below left=1cm and 1cm of root] (v1) {Voxel};
+\node[voxel, below right=1cm and 1cm of root] (v2) {Voxel};
+
+% Level 2
+\node[voxel, below left=1cm and 0.3cm of v1] (v11) {Leaf};
+\node[voxel, below right=1cm and 0.3cm of v1] (v12) {Leaf};
+\node[voxel, below left=1cm and 0.3cm of v2] (v21) {Leaf};
+
+% Particles
+\node[particle, below=0.8cm of v11] (p1) {$p_1$};
+\node[particle, below left=0.8cm and 0.1cm of v12] (p2) {$p_2$};
+\node[particle, below right=0.8cm and 0.1cm of v12] (p3) {$p_3$};
+\node[particle, below=0.8cm of v21] (p4) {$p_4$};
+
+% Edges
+\draw[arrow] (root) -- (v1);
+\draw[arrow] (root) -- (v2);
+\draw[arrow] (v1) -- (v11);
+\draw[arrow] (v1) -- (v12);
+\draw[arrow] (v2) -- (v21);
+\draw[arrow] (v11) -- (p1);
+\draw[arrow] (v12) -- (p2);
+\draw[arrow] (v12) -- (p3);
+\draw[arrow] (v21) -- (p4);
+
+% Labels
+\node[right=2cm of root] {\small Level 0 (coarsest)};
+\node[right=2cm of v2] {\small Level 1};
+\node[right=2cm of v21] {\small Level 2 (leaves)};
+\node[right=2cm of p4] {\small Particles (nodes)};
+
+\end{tikzpicture}
+\caption{Hierarchical hypergraph structure. Particles are nodes; octree voxels at each level are hyperedges. Note that voxel v12 contains two particles, illustrating the hyperedge property.}
+\label{fig:hypergraph}
+\end{figure}
+
+\subsection{Node Features}
+
+Each particle node has a feature vector containing:
+\begin{itemize}
+    \item Position: $(x, y, z)$
+    \item Velocity: $(v_x, v_y, v_z)$
+    \item Acceleration: $(a_x, a_y, a_z)$
+    \item Charge: $q$
+    \item (Optional) Mass, particle type, etc.
+\end{itemize}
+
+\subsection{Sparse Processing}
+
+A key efficiency feature is that only ``active'' voxels are processed:
+\begin{itemize}
+    \item A leaf voxel is active if it contains $\geq 1$ particle
+    \item A non-leaf voxel is active if it has $\geq 1$ active child
+\end{itemize}
+
+Empty branches of the octree are pruned entirely, yielding O($N \log N$) complexity for $N$ particles---similar to Barnes-Hut or Fast Multipole Methods---rather than O($V$) for $V$ total voxels.
+
+\subsection{Encoder (Scatter / Up-Pass)}
+
+Information flows from particles up through the hierarchy:
+
+\begin{enumerate}
+    \item \textbf{Particle $\to$ Leaf Voxel}: Each particle sends its features to its containing leaf voxel
+    \item \textbf{Leaf Aggregation}: An MLP processes the set of particle messages using a permutation-invariant aggregation (sum, mean, or attention):
+    \begin{equation}
+        \mathbf{h}_{\text{leaf}} = \text{MLP}\left( \bigoplus_{p \in \text{leaf}} \mathbf{x}_p \right)
+    \end{equation}
+    where $\oplus$ denotes aggregation.
+    \item \textbf{Child $\to$ Parent}: Each active voxel sends its hidden state to its parent
+    \item \textbf{Parent Aggregation}: MLP processes aggregated child messages
+    \item \textbf{Repeat} until reaching the root voxel
+\end{enumerate}
+
+At each level, voxels learn representations summarizing the particles in their subtree.
+
+\subsection{Decoder (Gather / Down-Pass)}
+
+Information flows from root back down to particles:
+
+\begin{enumerate}
+    \item \textbf{Root Processing}: MLP processes root state (global context)
+    \item \textbf{Parent $\to$ Child}: Parent sends context to each active child
+    \item \textbf{Child Update}: MLP combines parent message with encoder state (skip connection):
+    \begin{equation}
+        \mathbf{h}'_{\text{child}} = \text{MLP}\left( [\mathbf{h}_{\text{parent}}; \mathbf{h}_{\text{child}}^{\text{enc}}] \right)
+    \end{equation}
+    \item \textbf{Repeat} until reaching leaf voxels
+    \item \textbf{Leaf $\to$ Particle}: Leaf voxels broadcast final state to their particles
+    \item \textbf{Particle Update}: MLP computes updated particle state:
+    \begin{equation}
+        \mathbf{x}'_p = \text{MLP}\left( [\mathbf{h}_{\text{leaf}}; \mathbf{x}_p] \right)
+    \end{equation}
+\end{enumerate}
+
+\subsection{Skip Connections}
+
+Like a U-Net, each level has skip connections between encoder and decoder:
+\begin{itemize}
+    \item Encoder state at level $\ell$ is concatenated with decoder input at level $\ell$
+    \item Preserves fine-grained spatial information through the bottleneck
+    \item Enables gradient flow during training
+\end{itemize}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    block/.style={rectangle, draw, minimum width=2cm, minimum height=0.8cm, fill=blue!20},
+    smallblock/.style={rectangle, draw, minimum width=1.5cm, minimum height=0.6cm, fill=green!20},
+    arrow/.style={->, >=stealth, thick},
+    skip/.style={->, >=stealth, thick, dashed, color=red!70}
+]
+
+% Encoder side
+\node[smallblock] (p1) at (0,0) {Particles};
+\node[block] (e1) at (0,1.5) {Level 3};
+\node[block] (e2) at (0,3) {Level 2};
+\node[block] (e3) at (0,4.5) {Level 1};
+\node[block, fill=orange!30] (root) at (0,6) {Root};
+
+% Decoder side
+\node[block] (d3) at (4,4.5) {Level 1};
+\node[block] (d2) at (4,3) {Level 2};
+\node[block] (d1) at (4,1.5) {Level 3};
+\node[smallblock] (p2) at (4,0) {Particles'};
+
+% Encoder arrows
+\draw[arrow] (p1) -- node[left] {\small scatter} (e1);
+\draw[arrow] (e1) -- (e2);
+\draw[arrow] (e2) -- (e3);
+\draw[arrow] (e3) -- (root);
+
+% Decoder arrows
+\draw[arrow] (root) -- (d3);
+\draw[arrow] (d3) -- (d2);
+\draw[arrow] (d2) -- (d1);
+\draw[arrow] (d1) -- node[right] {\small gather} (p2);
+
+% Skip connections
+\draw[skip] (e3) -- (d3);
+\draw[skip] (e2) -- (d2);
+\draw[skip] (e1) -- (d1);
+
+% Labels
+\node[above=0.3cm of root] {Encoder $\rightarrow$ Decoder};
+\node[left=0.5cm of e2, red] {\small skip connections};
+
+\end{tikzpicture}
+\caption{U-Net-like encoder-decoder structure with skip connections. The encoder scatters particle information up through the octree hierarchy. The decoder gathers global context back down to update particle states.}
+\label{fig:unet}
+\end{figure}
+
+\section{Comparison with Grid-Based Methods}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lll}
+\toprule
+Aspect & Convolutional U-Net & H$^2$GNN (This Work) \\
+\midrule
+Input & Fixed grid (field values) & Variable particle set \\
+Layers & 2D/3D convolutions & Hypergraph message passing \\
+Processing & Dense (all grid cells) & Sparse (active voxels only) \\
+Resolution & Fixed grid size & Adaptive octree \\
+Output & Field on grid & Particle state updates \\
+Complexity & O(grid size) & O($N \log N$) \\
+\bottomrule
+\end{tabular}
+\caption{Comparison between conventional convolutional U-Net and the proposed hierarchical hypergraph approach.}
+\label{tab:comparison}
+\end{table}
+
+\section{Analytical Reference Implementation}
+
+Before training the neural network, we developed analytical solvers to generate ground truth data and validate the physics.
+
+\subsection{2D Electrostatic Potential}
+
+For a set of point charges, the electrostatic potential in 2D is:
 \begin{equation}
     \phi(\mathbf{r}) = -\sum_i q_i \ln|\mathbf{r} - \mathbf{r}_i|
 \end{equation}
-where we have absorbed physical constants for simplicity. This potential satisfies Poisson's equation:
+
+This satisfies Poisson's equation $\nabla^2 \phi = -\rho/\epsilon_0$.
+
+\subsection{Implementation}
+
+The analytical solver is implemented in \texttt{electrostatic\_unet/electrostatic\_2d.py}:
+\begin{itemize}
+    \item \texttt{generate\_particles()}: Creates random point charges
+    \item \texttt{compute\_potential()}: Computes analytical potential
+    \item \texttt{compute\_electric\_field()}: Derives $\mathbf{E} = -\nabla\phi$
+\end{itemize}
+
+\subsection{Verification}
+
+Two verification tests confirm correctness:
+
+\subsubsection{Poisson's Equation}
+The numerical Laplacian $\nabla^2\phi$ is compared to $-\rho$. Figure~\ref{fig:poisson_verification} shows the localized peaks at particle positions.
+
+\subsubsection{Superposition Principle}
+Particles are split into groups $A$ and $B$, verifying:
 \begin{equation}
-    \nabla^2 \phi = -\frac{\rho}{\epsilon_0}
+    \phi(A \cup B) = \phi(A) + \phi(B)
 \end{equation}
-
-The electric field is the negative gradient of the potential:
-\begin{equation}
-    \mathbf{E} = -\nabla \phi
-\end{equation}
-
-A key property of Poisson's equation is \textbf{linearity}: the potential from multiple charges equals the sum of potentials from individual charges (superposition principle).
-
-\section{MATLAB Reference Implementation}
-
-Before training a neural network, we developed a MATLAB implementation to compute the analytical solution and visualize the physics.
-
-\subsection{Implementation Details}
-
-The MATLAB script \texttt{matlab/electrostatic/electrostatic\_potential\_2d.m} performs the following:
-
-\begin{enumerate}
-    \item \textbf{Particle Generation}: $N$ point charges are placed randomly in a 2D domain $[0,1]^2$, with charges $q_i \in [-1, 1]$ drawn uniformly at random.
-
-    \item \textbf{Charge Density (Scatter)}: Each particle deposits its charge onto a computational grid using nearest-cell assignment:
-    \begin{equation}
-        \rho_{ij} = \sum_p \frac{q_p}{\Delta x \Delta y} \cdot \delta_{i,i_p} \delta_{j,j_p}
-    \end{equation}
-    where $(i_p, j_p)$ is the grid cell containing particle $p$.
-
-    \item \textbf{Potential Computation}: The analytical potential is computed at each grid point:
-    \begin{equation}
-        \phi_{ij} = -\sum_p q_p \ln\left(\max(|\mathbf{r}_{ij} - \mathbf{r}_p|, \epsilon)\right)
-    \end{equation}
-    where $\epsilon \approx 2\Delta x$ regularizes the singularity at particle centers.
-
-    \item \textbf{Electric Field}: Computed via numerical gradient:
-    \begin{equation}
-        \mathbf{E} = -\nabla \phi \approx -\left(\frac{\partial \phi}{\partial x}, \frac{\partial \phi}{\partial y}\right)
-    \end{equation}
-\end{enumerate}
-
-\subsection{Visualization}
-
-The implementation produces three visualization panels:
-
-\begin{enumerate}
-    \item \textbf{Charge Density}: Color map of $\rho$ with particle positions marked (red for positive, blue for negative charges).
-
-    \item \textbf{Electrostatic Potential}: Color map of $\phi$ with equipotential contours overlaid. Positive charges create potential wells (low values), negative charges create peaks.
-
-    \item \textbf{Electric Field}: Magnitude $|\mathbf{E}|$ on logarithmic scale with streamlines showing field direction. Field lines emanate from positive charges and terminate at negative charges.
-\end{enumerate}
+This test passes to machine precision (relative error $< 10^{-13}$).
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=\textwidth]{figures/electrostatic_fields.png}
-    \caption{Visualization of the 2D electrostatic simulation with 20 random point charges. (a) Charge density $\rho$ scattered to a $128 \times 128$ grid using nearest-cell assignment. (b) Electrostatic potential $\phi$ with equipotential contours. (c) Electric field magnitude $|\mathbf{E}|$ on logarithmic scale with streamlines showing field direction.}
+    \caption{Visualization of 2D electrostatic simulation with 20 random point charges. (a) Charge density. (b) Electrostatic potential with equipotential contours. (c) Electric field magnitude with streamlines.}
     \label{fig:electrostatic_fields}
 \end{figure}
-
-\subsection{Verification}
-
-Two verification tests are performed:
-
-\subsubsection{Poisson's Equation}
-
-The numerical Laplacian $\nabla^2 \phi$ is computed and compared to $-\rho$. For point charges, this comparison is approximate since the charge density involves delta functions, but away from particle centers the Laplacian should be near zero (as expected for a source-free region). Figure~\ref{fig:poisson_verification} shows this comparison.
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.85\textwidth]{figures/poisson_verification.png}
-    \caption{Verification of Poisson's equation. (a) Numerical Laplacian $\nabla^2\phi$ computed via finite differences. (b) Negative charge density $-\rho$. The Laplacian shows localized peaks at particle positions, matching the discrete charge distribution.}
+    \caption{Verification of Poisson's equation. (a) Numerical Laplacian $\nabla^2\phi$. (b) Negative charge density $-\rho$.}
     \label{fig:poisson_verification}
 \end{figure}
-
-\subsubsection{Superposition Principle}
-
-The particles are split into two groups $A$ and $B$, and we verify:
-\begin{equation}
-    \phi(A \cup B) = \phi(A) + \phi(B)
-\end{equation}
-
-This test passes to machine precision (relative error $< 10^{-13}$), confirming the linearity of the implementation. Figure~\ref{fig:superposition} demonstrates this by showing the potentials from each particle group separately and their sum.
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.85\textwidth]{figures/superposition_test.png}
-    \caption{Verification of the superposition principle. (a) Potential from the first 10 charges ($\phi_A$). (b) Potential from the last 10 charges ($\phi_B$). (c) Sum of individual potentials ($\phi_A + \phi_B$). (d) Error between the direct computation and the sum, showing machine-precision agreement.}
+    \caption{Verification of superposition principle showing machine-precision agreement.}
     \label{fig:superposition}
 \end{figure}
 
-\subsection{Parameters}
-
-\begin{table}[H]
-\centering
-\begin{tabular}{ll}
-\toprule
-Parameter & Value \\
-\midrule
-Grid resolution & $128 \times 128$ \\
-Domain & $[0, 1]^2$ \\
-Number of particles & 20 \\
-Charge range & $[-1, 1]$ \\
-Regularization $\epsilon$ & $2/n_x$ (2 grid cells) \\
-\bottomrule
-\end{tabular}
-\caption{Default parameters for simulation.}
-\label{tab:matlab_params}
-\end{table}
-
-\section{Python Implementation}
-
-The MATLAB reference implementation has been ported to Python for integration with PyTorch-based neural network training. The Python implementation is located in \texttt{electrostatic\_unet/electrostatic\_2d.py} and provides the same functionality with a modular, object-oriented design.
-
-\subsection{Key Components}
-
-\begin{itemize}
-    \item \texttt{Particles}: Dataclass storing particle positions $(x, y)$ and charges $q$
-    \item \texttt{generate\_particles()}: Creates random point charges in the domain
-    \item \texttt{scatter\_charges()}: Deposits particles onto grid using nearest-cell assignment
-    \item \texttt{compute\_potential()}: Computes analytical potential via superposition
-    \item \texttt{compute\_electric\_field()}: Derives $\mathbf{E} = -\nabla\phi$ using numerical gradients
-    \item \texttt{run\_simulation()}: Orchestrates the full simulation pipeline
-\end{itemize}
-
-\subsection{Code Example}
-
-\begin{lstlisting}[language=Python]
-from electrostatic_unet.electrostatic_2d import run_simulation, plot_fields
-
-# Run simulation with 20 random charges
-result = run_simulation(nx=128, ny=128, n_particles=20, seed=42)
-
-# Access computed fields
-phi = result['phi']      # Potential field (128, 128)
-Ex, Ey = result['Ex'], result['Ey']  # Electric field components
-rho = result['rho']      # Charge density
-
-# Visualize results
-plot_fields(result, save_path='output.png')
-\end{lstlisting}
-
-The Python implementation produces identical results to the MATLAB version, as verified by the superposition test passing to machine precision.
-
-\section{U-Net Architecture}
-
-The U-Net learns the mapping from charge density $\rho$ to potential $\phi$:
-\begin{equation}
-    \phi = \text{UNet}(\rho; \theta)
-\end{equation}
-
-\subsection{Architecture Design}
-
-The U-Net follows the standard encoder-decoder structure with skip connections:
-
-\begin{itemize}
-    \item \textbf{Input}: Single-channel image representing charge density $\rho(x,y)$
-    \item \textbf{Encoder}: Sequence of convolution $\rightarrow$ activation $\rightarrow$ downsampling blocks, doubling channels at each level
-    \item \textbf{Bottleneck}: Convolutional processing at coarsest resolution
-    \item \textbf{Decoder}: Sequence of upsampling $\rightarrow$ skip connection concatenation $\rightarrow$ convolution blocks, halving channels at each level
-    \item \textbf{Output}: Single-channel image representing potential $\phi(x,y)$
-\end{itemize}
-
-For a $128 \times 128$ input with 4 encoder levels, the spatial dimensions progress as:
-\[
-128 \rightarrow 64 \rightarrow 32 \rightarrow 16 \rightarrow 8 \text{ (bottleneck)} \rightarrow 16 \rightarrow 32 \rightarrow 64 \rightarrow 128
-\]
-
-\subsection{Why U-Net?}
-
-The U-Net architecture is well-suited for this problem because:
-\begin{enumerate}
-    \item \textbf{Multi-scale processing}: The encoder captures both local charge structure and global potential behavior.
-    \item \textbf{Skip connections}: Preserve fine-grained spatial information needed for accurate potential near charges.
-    \item \textbf{Proven effectiveness}: U-Nets excel at image-to-image translation tasks with spatial correspondence between input and output.
-\end{enumerate}
-
 \section{Training Data Generation}
 
-Training data is generated using the same analytical formula as the MATLAB implementation:
+Training data is generated from physics simulation:
 
 \begin{enumerate}
-    \item Sample $N \sim \text{Uniform}(5, 50)$ particles per sample
-    \item Place particles uniformly in the domain (with margin from boundaries)
-    \item Assign charges $q_i \sim \text{Uniform}(-1, 1)$
-    \item Scatter charges to grid to create $\rho$
-    \item Compute analytical $\phi$ with regularization
+    \item Initialize $N$ particles with random positions, velocities, and charges
+    \item Compute ground truth forces using analytical formulas
+    \item Integrate forward one timestep to get ground truth state updates
+    \item Network input: initial particle states
+    \item Network output: updated particle states (or forces/accelerations)
 \end{enumerate}
 
 \begin{table}[H]
@@ -247,10 +348,11 @@ Training data is generated using the same analytical formula as the MATLAB imple
 \toprule
 Parameter & Value \\
 \midrule
-Training samples & 10,000 \\
-Validation samples & 1,000 \\
-Grid resolution & $128 \times 128$ \\
-Particles per sample & 5--50 (uniform) \\
+Particles per sample & 10--1000 (varied) \\
+Charge range & $[-1, 1]$ \\
+Domain & $[0, 1]^3$ \\
+Training samples & 10,000+ \\
+Validation samples & 1,000+ \\
 \bottomrule
 \end{tabular}
 \caption{Training data generation parameters.}
@@ -259,42 +361,56 @@ Particles per sample & 5--50 (uniform) \\
 
 \section{Training}
 
-\textit{(To be completed after PyTorch implementation)}
+\textit{(To be completed after implementation)}
 
 \begin{itemize}
-    \item Loss function: MSE between predicted and ground truth potential
-    \item Optimizer: Adam
-    \item Learning rate: $10^{-4}$
-    \item Batch size: 16--32
-    \item Epochs: Until validation loss plateaus
+    \item \textbf{Loss}: MSE on predicted vs ground truth particle updates
+    \item \textbf{Physics-informed loss} (optional): Conservation laws, symmetries
+    \item \textbf{Optimizer}: Adam with learning rate $\sim 10^{-4}$
+    \item \textbf{Batching}: Handle variable particle counts with sparse tensors
 \end{itemize}
 
-\section{Results}
+\section{Evaluation Metrics}
 
-\textit{(To be completed after training)}
-
-\section{Evaluation}
-
-Planned evaluation metrics:
 \begin{enumerate}
-    \item \textbf{L2 Error}: Mean squared error on held-out test configurations
-    \item \textbf{Superposition Test}: Verify $\phi(A \cup B) \approx \phi(A) + \phi(B)$ for learned model
-    \item \textbf{Generalization}: Test on particle counts outside training distribution
-    \item \textbf{Visual Comparison}: Predicted vs ground truth potential fields
+    \item \textbf{Force prediction error}: Compare predicted vs analytical forces
+    \item \textbf{Trajectory stability}: Rollout simulation, compare to ground truth
+    \item \textbf{Conservation laws}: Check energy/momentum conservation
+    \item \textbf{Scaling}: Test on particle counts outside training distribution
+    \item \textbf{Timing}: Compare to O($N^2$) direct and O($N \log N$) tree methods
 \end{enumerate}
 
-\section{Future Work}
+\section{Implementation Plan}
+
+\begin{enumerate}
+    \item \textbf{Octree module}: Build octree from particles, track active voxels
+    \item \textbf{Hypergraph module}: Map particles $\leftrightarrow$ voxels, children $\leftrightarrow$ parents
+    \item \textbf{Message passing layers}: Scatter/gather with MLPs
+    \item \textbf{Dataset}: Physics-based data generation with ground truth forces
+    \item \textbf{Training loop}: Handle variable-size inputs, logging, checkpoints
+    \item \textbf{Evaluation}: Metrics, visualization, comparison to baselines
+\end{enumerate}
+
+\section{Future Extensions}
 
 \begin{itemize}
-    \item Extend to 3D with volumetric U-Net
-    \item Replace regular grid with adaptive octree representation
-    \item Add vector outputs for electric field $\mathbf{E} = -\nabla\phi$
-    \item Introduce moving charges and learn magnetic field $\mathbf{B}$
-    \item Couple to particle dynamics for full simulation loop
+    \item Adaptive octree refinement based on particle density or gradients
+    \item Recurrent/temporal processing for time evolution
+    \item Full 3D electromagnetic fields with moving charges
+    \item Hybrid methods combining learned and analytical forces
+    \item Inverse problems: infer particle properties from trajectories
 \end{itemize}
 
 \section{Conclusions}
 
-\textit{(To be completed)}
+\textit{(To be completed after experiments)}
+
+We have presented the design for a hierarchical hypergraph neural network that learns electromagnetic particle interactions. The key innovations are:
+\begin{itemize}
+    \item Treating particles as nodes and octree voxels as hyperedges
+    \item Sparse processing of only active voxels
+    \item U-Net-like encoder-decoder with skip connections
+    \item Direct particle-to-particle learning without fixed grid discretization
+\end{itemize}
 
 \end{document}

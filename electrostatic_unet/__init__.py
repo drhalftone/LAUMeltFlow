@@ -13,14 +13,14 @@ Key components:
 """
 
 from .quadtree import Quadtree
-from .h2gnn import H2GNN, MLP, scatter_mean
+from .h2gnn import H2GNN, MLP, scatter_sum
 from .dataset import ElectrostaticDataset, generate_sample, compute_coulomb_field_2d
 
 __all__ = [
     'Quadtree',
     'H2GNN',
     'MLP',
-    'scatter_mean',
+    'scatter_sum',
     'ElectrostaticDataset',
     'generate_sample',
     'compute_coulomb_field_2d',

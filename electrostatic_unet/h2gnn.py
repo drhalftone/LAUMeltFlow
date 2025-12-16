@@ -13,9 +13,9 @@ from typing import Optional
 from .quadtree import Quadtree
 
 
-def scatter_mean(src: torch.Tensor, index: torch.Tensor, dim_size: int) -> torch.Tensor:
+def scatter_sum(src: torch.Tensor, index: torch.Tensor, dim_size: int) -> torch.Tensor:
     """
-    Scatter mean aggregation.
+    Scatter sum aggregation.
 
     Args:
         src: (N, D) source tensor
@@ -23,20 +23,10 @@ def scatter_mean(src: torch.Tensor, index: torch.Tensor, dim_size: int) -> torch
         dim_size: size of output dimension 0
 
     Returns:
-        out: (dim_size, D) tensor where out[i] = mean of src[index == i]
+        out: (dim_size, D) tensor where out[i] = sum of src[index == i]
     """
-    # Initialize output and count tensors
     out = torch.zeros(dim_size, src.shape[-1], device=src.device, dtype=src.dtype)
-    count = torch.zeros(dim_size, device=src.device, dtype=src.dtype)
-
-    # Scatter add
     out.scatter_add_(0, index.unsqueeze(-1).expand_as(src), src)
-    count.scatter_add_(0, index, torch.ones_like(index, dtype=src.dtype))
-
-    # Divide by count (avoid division by zero)
-    count = count.clamp(min=1).unsqueeze(-1)
-    out = out / count
-
     return out
 
 
@@ -142,10 +132,10 @@ class H2GNN(nn.Module):
         # Particles -> hidden features
         h_particles = self.particle_encoder(particles)  # (N, hidden)
 
-        # Scatter particles to leaf voxels (mean aggregation)
+        # Scatter particles to leaf voxels (sum aggregation)
         particle_to_leaf = quadtree.get_particle_to_leaf()
         n_leaves = quadtree.num_active(max_depth)
-        h_leaves = scatter_mean(h_particles, particle_to_leaf, n_leaves)
+        h_leaves = scatter_sum(h_particles, particle_to_leaf, n_leaves)
 
         # Store encoder states for skip connections
         encoder_states = {max_depth: h_leaves}
@@ -153,10 +143,10 @@ class H2GNN(nn.Module):
         # Propagate up: leaves -> root
         h = h_leaves
         for level in range(max_depth, 0, -1):
-            # Scatter children to parents (mean aggregation)
+            # Scatter children to parents (sum aggregation)
             child_to_parent = quadtree.get_child_to_parent(level)
             n_parents = quadtree.num_active(level - 1)
-            h_aggregated = scatter_mean(h, child_to_parent, n_parents)
+            h_aggregated = scatter_sum(h, child_to_parent, n_parents)
 
             # Apply level-specific MLP
             h = self.encoders[level - 1](h_aggregated)

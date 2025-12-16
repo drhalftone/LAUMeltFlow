@@ -138,15 +138,25 @@ Unlike standard graphs where edges connect exactly two nodes, hyperedges can con
 \label{fig:hypergraph}
 \end{figure}
 
+\subsection{Current Configuration}
+
+The current implementation uses:
+\begin{itemize}
+    \item \textbf{Dimensions}: 2D with quadtree (extensible to 3D octree)
+    \item \textbf{Particles}: 10--100 per sample
+    \item \textbf{Quadtree depth}: 4 levels (16$\times$16 leaf resolution)
+    \item \textbf{Input}: $N$ particles with $(x, y, q)$
+    \item \textbf{Output}: $N$ electric field vectors $(E_x, E_y)$
+\end{itemize}
+
 \subsection{Node Features}
 
 Each particle node has a feature vector containing:
 \begin{itemize}
-    \item Position: $(x, y, z)$
-    \item Velocity: $(v_x, v_y, v_z)$
-    \item Acceleration: $(a_x, a_y, a_z)$
+    \item Position: $(x, y)$ [or $(x, y, z)$ in 3D]
     \item Charge: $q$
-    \item (Optional) Mass, particle type, etc.
+    \item Relative position: particle position relative to containing voxel center
+    \item (Future) Velocity, acceleration, mass
 \end{itemize}
 
 \subsection{Sparse Processing}
@@ -164,35 +174,34 @@ Empty branches of the octree are pruned entirely, yielding O($N \log N$) complex
 Information flows from particles up through the hierarchy:
 
 \begin{enumerate}
-    \item \textbf{Particle $\to$ Leaf Voxel}: Each particle sends its features to its containing leaf voxel
-    \item \textbf{Leaf Aggregation}: An MLP processes the set of particle messages using a permutation-invariant aggregation (sum, mean, or attention):
+    \item \textbf{Relative Position Encoding}: Compute each particle's position relative to its containing voxel center: $\mathbf{r}_{\text{rel}} = \mathbf{r}_p - \mathbf{r}_{\text{voxel}}$
+    \item \textbf{Particle $\to$ Hidden}: MLP encodes augmented particle features $(x, y, q, r_{\text{rel},x}, r_{\text{rel},y})$ to hidden state
+    \item \textbf{Particle $\to$ Leaf Voxel}: Scatter with \textbf{sum aggregation}:
     \begin{equation}
-        \mathbf{h}_{\text{leaf}} = \text{MLP}\left( \bigoplus_{p \in \text{leaf}} \mathbf{x}_p \right)
+        \mathbf{h}_{\text{leaf}} = \sum_{p \in \text{leaf}} \mathbf{h}_p
     \end{equation}
-    where $\oplus$ denotes aggregation.
-    \item \textbf{Child $\to$ Parent}: Each active voxel sends its hidden state to its parent
-    \item \textbf{Parent Aggregation}: MLP processes aggregated child messages
+    \item \textbf{Child $\to$ Parent}: Sum aggregation of child hidden states
+    \item \textbf{Level MLP}: Apply level-specific MLP to aggregated state
     \item \textbf{Repeat} until reaching the root voxel
 \end{enumerate}
 
-At each level, voxels learn representations summarizing the particles in their subtree.
+\textbf{Why sum aggregation?} Mean aggregation loses information about how many particles contributed. Sum preserves particle count information, which is physically meaningful: the total field contribution from a voxel depends on both the charges and the number of particles. Skip connections implicitly carry this count information through the network.
 
 \subsection{Decoder (Gather / Down-Pass)}
 
 Information flows from root back down to particles:
 
 \begin{enumerate}
-    \item \textbf{Root Processing}: MLP processes root state (global context)
-    \item \textbf{Parent $\to$ Child}: Parent sends context to each active child
-    \item \textbf{Child Update}: MLP combines parent message with encoder state (skip connection):
+    \item \textbf{Parent $\to$ Child}: Broadcast parent state to each active child
+    \item \textbf{Skip Connection}: Concatenate with encoder state at same level:
     \begin{equation}
         \mathbf{h}'_{\text{child}} = \text{MLP}\left( [\mathbf{h}_{\text{parent}}; \mathbf{h}_{\text{child}}^{\text{enc}}] \right)
     \end{equation}
     \item \textbf{Repeat} until reaching leaf voxels
-    \item \textbf{Leaf $\to$ Particle}: Leaf voxels broadcast final state to their particles
-    \item \textbf{Particle Update}: MLP computes updated particle state:
+    \item \textbf{Leaf $\to$ Particle}: Broadcast leaf state to particles (gather)
+    \item \textbf{Output}: MLP computes electric field from leaf state and augmented particle features:
     \begin{equation}
-        \mathbf{x}'_p = \text{MLP}\left( [\mathbf{h}_{\text{leaf}}; \mathbf{x}_p] \right)
+        \mathbf{E}_p = \text{MLP}\left( [\mathbf{h}_{\text{leaf}}; x_p, y_p, q_p, r_{\text{rel},x}, r_{\text{rel},y}] \right)
     \end{equation}
 \end{enumerate}
 
@@ -332,15 +341,27 @@ This test passes to machine precision (relative error $< 10^{-13}$).
 
 \section{Training Data Generation}
 
-Training data is generated from physics simulation:
+Training data is generated using brute-force O($N^2$) Coulomb computation:
 
 \begin{enumerate}
-    \item Initialize $N$ particles with random positions, velocities, and charges
-    \item Compute ground truth forces using analytical formulas
-    \item Integrate forward one timestep to get ground truth state updates
-    \item Network input: initial particle states
-    \item Network output: updated particle states (or forces/accelerations)
+    \item \textbf{Input}: Generate $N$ random particles in $[0, 1]^2$ with charges in $[-1, 1]$
+    \item \textbf{Output}: Compute ground truth electric field at each particle using pairwise Coulomb summation
 \end{enumerate}
+
+The ground truth electric field at particle $i$ is computed as:
+\begin{equation}
+    \mathbf{E}_i = \sum_{j \neq i} \frac{q_j (\mathbf{r}_i - \mathbf{r}_j)}{|\mathbf{r}_i - \mathbf{r}_j|^2}
+\end{equation}
+
+This is implemented using vectorized operations:
+\begin{lstlisting}[language=Python]
+# Vectorized 2D Coulomb field - O(N^2) computation
+r = positions.unsqueeze(1) - positions.unsqueeze(0)  # (N, N, 2)
+r_mag = torch.norm(r, dim=-1)  # (N, N)
+E = (charges * r / r_mag**2).sum(dim=1)  # (N, 2)
+\end{lstlisting}
+
+\textbf{Key insight}: The ground truth computation is O($N^2$), but the trained network approximates this with O($N \log N$) complexity using the hierarchical quadtree structure---similar to how Barnes-Hut or Fast Multipole Methods work, but with learned rather than analytical approximations.
 
 \begin{table}[H]
 \centering
@@ -348,11 +369,12 @@ Training data is generated from physics simulation:
 \toprule
 Parameter & Value \\
 \midrule
-Particles per sample & 10--1000 (varied) \\
+Particles per sample & 10--100 \\
 Charge range & $[-1, 1]$ \\
-Domain & $[0, 1]^3$ \\
-Training samples & 10,000+ \\
-Validation samples & 1,000+ \\
+Domain & $[0, 1]^2$ \\
+Quadtree depth & 4 levels \\
+Training samples & 1,000+ \\
+Validation samples & 200+ \\
 \bottomrule
 \end{tabular}
 \caption{Training data generation parameters.}
@@ -361,35 +383,60 @@ Validation samples & 1,000+ \\
 
 \section{Training}
 
-\textit{(To be completed after implementation)}
+The training loop proceeds as follows:
 
+\begin{enumerate}
+    \item Generate random particle configuration (positions + charges)
+    \item Compute ground truth E field using O($N^2$) Coulomb summation
+    \item Build quadtree from particle positions
+    \item Forward pass through H$^2$GNN $\to$ predicted E field
+    \item Compute loss $= \text{MSE}(\mathbf{E}_{\text{pred}}, \mathbf{E}_{\text{true}})$
+    \item Backpropagate and update weights
+\end{enumerate}
+
+\textbf{Hyperparameters}:
 \begin{itemize}
-    \item \textbf{Loss}: MSE on predicted vs ground truth particle updates
-    \item \textbf{Physics-informed loss} (optional): Conservation laws, symmetries
+    \item \textbf{Loss}: MSE between predicted and ground truth E field
     \item \textbf{Optimizer}: Adam with learning rate $\sim 10^{-4}$
-    \item \textbf{Batching}: Handle variable particle counts with sparse tensors
+    \item \textbf{Scheduler}: ReduceLROnPlateau (halve LR on plateau)
+    \item \textbf{Hidden dimension}: 64
+    \item \textbf{MLP layers}: 2 per level
+    \item \textbf{Checkpointing}: Best model and periodic saves
 \end{itemize}
+
+\textbf{Goal}: Train the network to approximate the expensive O($N^2$) Coulomb computation using the efficient O($N \log N$) hierarchical structure. Once trained, inference is fast.
 
 \section{Evaluation Metrics}
 
 \begin{enumerate}
-    \item \textbf{Force prediction error}: Compare predicted vs analytical forces
-    \item \textbf{Trajectory stability}: Rollout simulation, compare to ground truth
-    \item \textbf{Conservation laws}: Check energy/momentum conservation
+    \item \textbf{MSE/RMSE}: Mean squared error on E field prediction
+    \item \textbf{MAE}: Mean absolute error
+    \item \textbf{Relative Error}: Error normalized by field magnitude: $|\mathbf{E}_{\text{pred}} - \mathbf{E}_{\text{true}}| / |\mathbf{E}_{\text{true}}|$
+    \item \textbf{Visualization}: Side-by-side ground truth vs predicted E vectors
     \item \textbf{Scaling}: Test on particle counts outside training distribution
-    \item \textbf{Timing}: Compare to O($N^2$) direct and O($N \log N$) tree methods
+    \item \textbf{Timing}: Compare to O($N^2$) direct computation
 \end{enumerate}
 
-\section{Implementation Plan}
+\section{Implementation Status}
+
+The following modules have been implemented in \texttt{electrostatic\_unet/}:
 
 \begin{enumerate}
-    \item \textbf{Octree module}: Build octree from particles, track active voxels
-    \item \textbf{Hypergraph module}: Map particles $\leftrightarrow$ voxels, children $\leftrightarrow$ parents
-    \item \textbf{Message passing layers}: Scatter/gather with MLPs
-    \item \textbf{Dataset}: Physics-based data generation with ground truth forces
-    \item \textbf{Training loop}: Handle variable-size inputs, logging, checkpoints
-    \item \textbf{Evaluation}: Metrics, visualization, comparison to baselines
+    \item \textbf{quadtree.py}: Sparse quadtree data structure, tracks only active voxels
+    \item \textbf{h2gnn.py}: H$^2$GNN model with encoder-decoder, weight sharing per level
+    \item \textbf{dataset.py}: Vectorized 2D Coulomb field computation, dataset class
+    \item \textbf{train.py}: Training loop with validation, LR scheduling, checkpointing
+    \item \textbf{evaluate.py}: Metrics computation, E field visualization, quadtree visualization
 \end{enumerate}
+
+\textbf{Quick start}:
+\begin{lstlisting}[language=bash]
+# Train
+python -m electrostatic_unet.train --epochs 100 --n-train 1000
+
+# Evaluate
+python -m electrostatic_unet.evaluate --checkpoint checkpoints/h2gnn_best.pt
+\end{lstlisting}
 
 \section{Future Extensions}
 
@@ -403,14 +450,16 @@ Validation samples & 1,000+ \\
 
 \section{Conclusions}
 
-\textit{(To be completed after experiments)}
-
-We have presented the design for a hierarchical hypergraph neural network that learns electromagnetic particle interactions. The key innovations are:
+We have implemented a hierarchical hypergraph neural network (H$^2$GNN) that learns to compute electric fields from charged particle configurations. The key features are:
 \begin{itemize}
-    \item Treating particles as nodes and octree voxels as hyperedges
-    \item Sparse processing of only active voxels
+    \item Particles as nodes with $(x, y, q)$ features plus relative position encoding
+    \item Quadtree voxels as hyperedges with weight sharing per level
+    \item Sparse processing of only active voxels (O($N \log N$) complexity)
     \item U-Net-like encoder-decoder with skip connections
-    \item Direct particle-to-particle learning without fixed grid discretization
+    \item Sum aggregation to preserve particle count information
+    \item Training on O($N^2$) ground truth, inference at O($N \log N$)
 \end{itemize}
+
+The architecture is designed to learn efficient approximations to the expensive pairwise Coulomb computation, analogous to how Barnes-Hut and Fast Multipole Methods achieve speedups through hierarchical approximation.
 
 \end{document}

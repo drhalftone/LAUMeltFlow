@@ -28,3 +28,9 @@ data/
 
 # Jupyter
 .ipynb_checkpoints/
+
+# Training checkpoints
+checkpoints/
+
+# Windows null device artifact
+nul

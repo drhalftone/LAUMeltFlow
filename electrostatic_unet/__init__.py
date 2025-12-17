@@ -14,13 +14,18 @@ Key components:
 
 from .quadtree import Quadtree
 from .h2gnn import H2GNN, MLP, scatter_sum
+from .h2gnn_attention import H2GNNAttention, MultiHeadAttention, AttentionBlock, VoxelPadding
 from .dataset import ElectrostaticDataset, generate_sample, compute_coulomb_field_2d
 
 __all__ = [
     'Quadtree',
     'H2GNN',
+    'H2GNNAttention',
     'MLP',
     'scatter_sum',
+    'MultiHeadAttention',
+    'AttentionBlock',
+    'VoxelPadding',
     'ElectrostaticDataset',
     'generate_sample',
     'compute_coulomb_field_2d',

@@ -32,5 +32,8 @@ data/
 # Training checkpoints
 checkpoints/
 
+# Trained models (large binary files)
+models/
+
 # Windows null device artifact
 nul

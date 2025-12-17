@@ -63,17 +63,17 @@ if not exist venv\Scripts\activate.bat (
     call venv\Scripts\activate
 )
 
-REM Step 1: Generate training data with expanded ranges
+REM Step 1: Generate training data with importance sampling
 echo.
-echo Step 1: Generating training data (2M samples)...
-echo   Expanded ranges for two-fluid case:
-echo     rho: [0.05, 7.0] kg/m^3
-echo     u:   [-200, 500] m/s
-echo     p:   [5k, 400k] Pa
+echo Step 1: Generating training data (20M samples with importance sampling)...
+echo   Core region (60%%): rho [0.05, 1.5], u [-150, 350], p [5k, 150k]
+echo   Extended region (40%%): rho [0.05, 7.0], u [-200, 500], p [5k, 400k]
 echo.
 
 python meltflow_gnn\grid_sampler_multiphase.py ^
-    --n-samples 2000000 ^
+    --n-samples 20000000 ^
+    --importance-sampling ^
+    --core-fraction 0.6 ^
     --gamma-values 1.2 1.25 1.289 1.3 1.35 1.4 1.45 1.5 1.55 1.6 1.67 ^
     --output data\multiphase_flux_data.npz
 if %ERRORLEVEL% neq 0 (
@@ -83,18 +83,18 @@ if %ERRORLEVEL% neq 0 (
 
 REM Step 2: Train the model
 echo.
-echo Step 2: Training MLP (500 epochs)...
+echo Step 2: Training MLP (1000 epochs on GPU)...
 python meltflow_gnn\train_uniform_cuda.py ^
     --data data\multiphase_flux_data.npz ^
-    --epochs 500 ^
+    --epochs 1000 ^
     --hidden-dim 256 ^
     --n-layers 5 ^
     --activation gelu ^
-    --batch-size 16384 ^
+    --batch-size 32768 ^
     --lr 1e-3 ^
     --output models\flux_mlp_multiphase.pt ^
     --output-npz models\flux_mlp_multiphase.npz ^
-    --device cpu
+    --device cuda
 if %ERRORLEVEL% neq 0 (
     echo Error in Step 2: Training failed
     exit /b %ERRORLEVEL%

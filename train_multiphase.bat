@@ -39,10 +39,10 @@ if not exist venv\Scripts\activate.bat (
     echo Installing scipy, matplotlib, and numba...
     pip install scipy matplotlib numba
 
-    REM Install PyTorch
+    REM Install PyTorch with CUDA support
     echo.
-    echo Installing PyTorch...
-    pip install torch
+    echo Installing PyTorch with CUDA 12.4...
+    pip install torch --index-url https://download.pytorch.org/whl/cu124
 
     REM Verify installation
     echo.

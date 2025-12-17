@@ -4,6 +4,7 @@ Training script for the flux MLP using uniform grid-sampled data.
 PyTorch CUDA implementation for fast GPU training.
 """
 
+import os
 import numpy as np
 import torch
 import torch.nn as nn
@@ -482,8 +483,16 @@ def main():
                         help='Output NumPy-compatible model path')
     parser.add_argument('--device', type=str, default='cuda',
                         help='Device (cuda or cpu)')
+    parser.add_argument('--resume', type=str, default=None,
+                        help='Path to checkpoint to resume from (auto-detects output path if not specified)')
 
     args = parser.parse_args()
+
+    # Auto-detect resume checkpoint if output file exists
+    if args.resume is None and args.output:
+        if os.path.exists(args.output):
+            args.resume = args.output
+            print(f"Found existing checkpoint: {args.output}")
 
     # Check CUDA
     if args.device == 'cuda' and not torch.cuda.is_available():
@@ -537,6 +546,17 @@ def main():
     n_params = sum(p.numel() for p in model.parameters())
     print(f"  Parameters: {n_params:,}")
     print(f"  Activation: {args.activation}")
+
+    # Load pretrained weights if checkpoint exists
+    if args.resume and os.path.exists(args.resume):
+        print(f"\n  Loading pretrained weights from {args.resume}...")
+        checkpoint = torch.load(args.resume, map_location='cpu', weights_only=False)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        print(f"  Loaded checkpoint successfully!")
+        if 'history' in checkpoint:
+            prev_epochs = len(checkpoint['history'].get('train_loss', []))
+            prev_best = min(checkpoint['history'].get('val_loss', [float('inf')]))
+            print(f"  Previous training: {prev_epochs} epochs, best val_loss={prev_best:.6f}")
 
     # Train
     print("\n3. Training...")

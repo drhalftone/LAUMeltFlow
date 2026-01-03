@@ -267,45 +267,66 @@ def in_1Dcdrop() -> Tuple[Dict[str, Any], Callable]:
 
     Regions:
         (1) Gas, (2) Liquid
+
+    Matches MATLAB in_1Dcdrop.m configuration.
     """
     config = {
         'ICs_hdr': "%------------------ 1D Option - Centered Liquid Droplet -----------------%",
         'n_dim': 1,
-        'dx': 0.01,
+        'dx': 0.005,  # Match MATLAB (finer grid)
         'x_min': 0.0,
         'x_max': 1.0,
         'flg_fld': [0, 1],  # Gas, Liquid
-        'EoS': ["perfect", "none"],
-        'c_EoS': [1.4, 1.0],
-        'slvr': ["roe_perfect", "none"],
-        'cfl': 0.9,
-        't_f': 1e-3,
-        'flg_BCs': 1,
-        'n_out': 51,
+        'EoS': ["perfect", "perfect"],  # Both use perfect gas EoS for pressure calc
+        'c_EoS': [1.4, 1.4],  # Same gamma for both
+        'slvr': ["roe_perfect", "incomp_1D"],  # Liquid uses incompressible solver
+        'cfl': 0.1,  # Lower CFL for stability (matching MATLAB)
+        't_f': 7.5e-4,  # Match MATLAB
+        'flg_BCs': 0,  # Match MATLAB
+        'n_out': 76,
         'wrt_nm': "flow_1Dcdrop",
         'opt_plt': 1,
+        't_anmt': 0.1,
+        'n_anmt': 5,
     }
 
-    # Droplet parameters
+    # Droplet parameters (matching MATLAB: d = [0.2, 0.5])
     d_center = 0.5  # Center of droplet
-    d_radius = 0.2  # Radius of droplet
+    d_radius = 0.1  # Radius (half of length 0.2)
 
+    # Match MATLAB: U_r(1,:) = [1.226,0,1.0e5], U_r(2,:) = [1000,100,1.0e5]
     U_r = np.array([
-        [1.0, 0.0, 1e5],       # Gas
-        [1000.0, 0.0, 1e5],    # Liquid
+        [1.226, 0.0, 1.0e5],    # Gas (air at ~STP)
+        [1000.0, 100.0, 1.0e5], # Liquid (water, moving at 100 m/s)
     ])
 
     def init_func(x: np.ndarray, U: np.ndarray, phi: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        """Initialize U and phi based on geometry."""
+        """Initialize U and phi based on geometry.
+
+        Level set convention (matching MATLAB):
+        - phi > 0: outside droplet (GAS = fluid 1)
+        - phi <= 0: inside droplet (LIQUID = fluid 2)
+        """
         n = len(x)
+        # Left interface at x = d_center - d_radius = 0.4
+        # Right interface at x = d_center + d_radius = 0.6
+        left_interface = d_center - d_radius
+        right_interface = d_center + d_radius
+
         for i in range(n):
-            dist = abs(x[i] - d_center)
-            if dist <= d_radius:
-                U[:, i] = U_r[1, :]  # Liquid
-                phi[i] = d_radius - dist  # Positive inside droplet
+            if x[i] <= d_center:
+                # Left of center: signed distance to left interface
+                phi[i] = left_interface - x[i]  # Positive outside, negative inside
             else:
-                U[:, i] = U_r[0, :]  # Gas
-                phi[i] = d_radius - dist  # Negative outside droplet
+                # Right of center: signed distance to right interface
+                phi[i] = x[i] - right_interface  # Positive outside, negative inside
+
+            # Set fluid properties based on level set
+            if phi[i] <= 0:
+                U[:, i] = U_r[1, :]  # Inside droplet: Liquid
+            else:
+                U[:, i] = U_r[0, :]  # Outside droplet: Gas
+
         return U, phi
 
     return config, init_func

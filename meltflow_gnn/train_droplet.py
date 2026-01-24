@@ -391,6 +391,39 @@ def main():
     # Ensure output directory exists
     os.makedirs(os.path.dirname(args.output) if os.path.dirname(args.output) else '.', exist_ok=True)
 
+    # Auto-generate training data if it doesn't exist
+    if not os.path.exists(args.data):
+        print(f"\nTraining data not found at {args.data}")
+        print("Generating training data (2M samples, this may take a minute)...")
+        print()
+
+        # Import and run the data generator
+        from grid_sampler_droplet import generate_droplet_samples_vectorized, get_droplet_parameter_ranges
+
+        # Generate data
+        inputs, outputs = generate_droplet_samples_vectorized(
+            n_samples=2000000,
+            gamma=1.4,
+            log_sampling=True,
+        )
+
+        # Save
+        data_dir = os.path.dirname(args.data)
+        if data_dir:
+            os.makedirs(data_dir, exist_ok=True)
+
+        ranges = get_droplet_parameter_ranges()
+        np.savez(args.data,
+                 inputs=inputs,
+                 outputs=outputs,
+                 ranges=ranges,
+                 gamma=1.4,
+                 config='in_1Dcdrop')
+
+        print(f"\nSaved training data to {args.data}")
+        print(f"  Samples: {len(inputs):,}")
+        print()
+
     # Load data
     print("\n1. Loading data...")
     X_train, Y_train, X_val, Y_val, stats = load_data(

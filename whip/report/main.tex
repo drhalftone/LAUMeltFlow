@@ -1,0 +1,483 @@
+\documentclass[11pt,a4paper]{article}
+
+% ---------- packages ----------
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage[margin=1in]{geometry}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{float}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{blue},
+  commentstyle=\color{gray},
+  breaklines=true,
+  frame=single,
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+}
+
+% ---------- title ----------
+\title{Whip Dynamics: FEA Simulation and GNN Surrogate Modeling}
+\author{LAU MeltFlow Project}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This report documents the development of a finite-element-style simulation
+of a bead chain (whip precursor) and the eventual training of a graph neural
+network (GNN) surrogate solver. We record the formulations attempted, what
+worked, what failed, and the rationale behind each design decision.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+% ==========================================================================
+\section{Introduction and Motivation}
+% ==========================================================================
+
+The goal of this project is to:
+\begin{enumerate}
+    \item Build a physically accurate FEA-style simulation of a flexible
+          chain/whip system.
+    \item Use the simulation to generate graph-structured training data.
+    \item Train a GNN to act as a surrogate solver, learning the
+          physics from data rather than from explicit equations.
+\end{enumerate}
+
+The starting problem is a \textbf{bead chain released under gravity}: a
+chain of $N$ mass nodes connected by rod elements, fixed to the ceiling at
+one end, stretched horizontally, and released. This is a classical benchmark
+that produces rich nonlinear dynamics (large rotations, wave propagation,
+pendulum-like swinging) while remaining simple enough to validate.
+
+% ==========================================================================
+\section{Problem Setup}
+% ==========================================================================
+
+\subsection{Geometry and Initial Conditions}
+
+\begin{itemize}
+    \item $N = 20$ mass nodes connected by $N-1 = 19$ rod elements.
+    \item Total chain length $L = 2.0\;\text{m}$, rest length per element
+          $\ell_0 = L/(N-1)$.
+    \item Total mass $M = 0.5\;\text{kg}$, lumped mass per node
+          $m = M/N$.
+    \item Node 0 is fixed at the origin (ceiling anchor).
+    \item Nodes $1 \ldots N-1$ are initially placed horizontally:
+          $\mathbf{x}_i(0) = (i \cdot \ell_0,\; 0)$.
+    \item Zero initial velocity: $\mathbf{v}_i(0) = \mathbf{0}$.
+    \item Released under gravity $g = 9.81\;\text{m/s}^2$ acting in $-y$.
+\end{itemize}
+
+\subsection{Graph Structure}
+
+The finite element mesh is inherently a graph:
+\begin{itemize}
+    \item \textbf{Nodes}: mass points with features
+          $(\mathbf{x}, \mathbf{v}, \text{node\_type})$.
+    \item \textbf{Edges}: rod elements with features
+          $(\ell_0, \text{current stretch})$.
+    \item Edges stored bidirectionally for GNN message passing:
+          $(i \to j)$ and $(j \to i)$ for each element.
+\end{itemize}
+
+This maps directly to a \texttt{torch\_geometric.data.Data} object for GNN
+training.
+
+% ==========================================================================
+\section{Formulation Attempts}
+\label{sec:formulations}
+% ==========================================================================
+
+We explored two fundamentally different approaches to enforcing the
+near-inextensibility of the rod elements. This section documents both,
+including what failed and why.
+
+% ---------- 3.1 ----------
+\subsection{Attempt 1: Position Verlet with SHAKE Constraints}
+\label{sec:shake}
+
+\subsubsection{Formulation}
+
+The first approach treated the rods as \emph{rigid constraints} (exact
+inextensibility) using the SHAKE algorithm paired with position-form
+St\"ormer-Verlet integration:
+
+\begin{align}
+    \mathbf{x}_{n+1} &= 2\mathbf{x}_n - \mathbf{x}_{n-1}
+                        + \Delta t^2 \, \mathbf{a}_n
+    \label{eq:verlet_pos} \\
+    \text{SHAKE:}\quad
+    |\mathbf{x}_{n+1,j} - \mathbf{x}_{n+1,i}| &= \ell_0
+    \quad \forall\; \text{element } (i,j)
+    \label{eq:shake}
+\end{align}
+
+SHAKE iteratively projects positions onto the constraint manifold using
+Gauss-Seidel sweeps along the chain:
+\begin{align}
+    \boldsymbol{\delta} &= \mathbf{x}_j - \mathbf{x}_i, \quad
+    d = |\boldsymbol{\delta}| \\
+    \text{correction} &= \frac{d - \ell_0}{d} \, \boldsymbol{\delta} \\
+    \mathbf{x}_i &\mathrel{+}= \frac{w_i}{w_i + w_j} \, \text{correction}, \quad
+    \mathbf{x}_j \mathrel{-}= \frac{w_j}{w_i + w_j} \, \text{correction}
+\end{align}
+where $w_i = 1/m_i$ is the inverse mass ($w_0 = 0$ for the fixed anchor).
+
+\subsubsection{Results}
+
+\begin{itemize}
+    \item \textbf{Constraint satisfaction}: Good.
+          Maximum relative length error $\sim 3 \times 10^{-5}$ with 20
+          Gauss-Seidel iterations per timestep.
+    \item \textbf{Energy conservation}: \textbf{Poor.}
+          Total energy drifted by $\sim 1\;\text{J}$ over $5\;\text{s}$,
+          even with $\Delta t = 0.0005\;\text{s}$ and 100 constraint
+          iterations.
+\end{itemize}
+
+\subsubsection{Why It Failed}
+
+The energy drift stemmed from the interaction between SHAKE and the velocity
+update. Two specific issues:
+
+\begin{enumerate}
+    \item \textbf{Velocity Verlet variant}: Our initial implementation used
+          velocity Verlet with SHAKE, but the standard SHAKE algorithm only
+          corrects positions---it does not include the RATTLE velocity
+          projection step needed to keep velocities tangent to the
+          constraint manifold. Without RATTLE, the velocity gains a
+          component along the constraint gradient each timestep, injecting
+          energy.
+    \item \textbf{Position Verlet variant}: Switching to pure position
+          Verlet (Eq.~\ref{eq:verlet_pos}) avoids explicit velocities, but
+          the Gauss-Seidel SHAKE projection converges slowly for chains:
+          information propagates only one link per iteration. With 19
+          links, even 100 iterations leave residual constraint errors that
+          accumulate over thousands of timesteps.
+\end{enumerate}
+
+\subsubsection{Lessons Learned}
+
+\begin{itemize}
+    \item SHAKE/RATTLE is well-suited to molecular dynamics where bonds are
+          short and constraint graphs are sparse, but performs poorly on
+          long serial chains.
+    \item For a chain of $N$ nodes, convergence requires $O(N)$ iterations
+          per step, making it inefficient.
+    \item The lack of a tunable stiffness parameter is elegant but makes
+          debugging and validation harder.
+\end{itemize}
+
+% ---------- 3.2 ----------
+\subsection{Attempt 2: Symplectic Euler with Penalty Springs}
+\label{sec:symplectic}
+
+\subsubsection{Formulation}
+
+The second (and successful) approach replaces rigid constraints with stiff
+Hookean springs. Each rod element exerts a force:
+
+\begin{equation}
+    \mathbf{F}_{ij}^{\text{spring}} = k \, (d - \ell_0) \, \hat{\boldsymbol{\delta}}
+    \label{eq:spring}
+\end{equation}
+
+where $k$ is the spring stiffness, $d = |\mathbf{x}_j - \mathbf{x}_i|$,
+and $\hat{\boldsymbol{\delta}} = (\mathbf{x}_j - \mathbf{x}_i)/d$.
+
+Optional viscous damping along the rod axis:
+
+\begin{equation}
+    \mathbf{F}_{ij}^{\text{damp}} = c \,
+    \bigl((\mathbf{v}_j - \mathbf{v}_i) \cdot \hat{\boldsymbol{\delta}}\bigr)
+    \, \hat{\boldsymbol{\delta}}
+    \label{eq:damping}
+\end{equation}
+
+Time integration uses symplectic (semi-implicit) Euler:
+
+\begin{align}
+    \mathbf{v}_{n+1} &= \mathbf{v}_n + \Delta t \, \mathbf{a}(\mathbf{x}_n)
+    \label{eq:symp_v} \\
+    \mathbf{x}_{n+1} &= \mathbf{x}_n + \Delta t \, \mathbf{v}_{n+1}
+    \label{eq:symp_x}
+\end{align}
+
+Note the key difference from explicit Euler: the position update uses the
+\emph{new} velocity $\mathbf{v}_{n+1}$, not $\mathbf{v}_n$. This makes the
+scheme symplectic.
+
+\subsubsection{Walkthrough: Updating a Single Bead}
+
+To build intuition, we trace exactly what happens to one interior bead $i$
+(not the fixed anchor) during a single timestep. At the start of the step,
+bead $i$ has position $\mathbf{x}_i$, velocity $\mathbf{v}_i$, and mass $m$.
+
+\paragraph{Step 1: Compute all forces on bead $i$.}
+Three types of force act on it:
+
+\begin{enumerate}
+    \item \textbf{Gravity}, pulling it downward:
+    \begin{equation}
+        \mathbf{F}^{\text{grav}}_i = \bigl(0,\; -mg\bigr)
+    \end{equation}
+
+    \item \textbf{Spring from the left neighbor} (bead $i-1$).
+    The rod connecting them has rest length $\ell_0$. If the current
+    distance $d = |\mathbf{x}_i - \mathbf{x}_{i-1}|$ differs from
+    $\ell_0$, the spring pulls them back together (or pushes them apart):
+    \begin{equation}
+        \mathbf{F}^{\text{left}}_i
+        = -k\,(d - \ell_0)\,\hat{\boldsymbol{\delta}}
+    \end{equation}
+    where $\hat{\boldsymbol{\delta}}$ points from bead $i{-}1$ to bead $i$.
+    When the rod is stretched ($d > \ell_0$), this force pulls bead $i$
+    back toward its neighbor.
+
+    \item \textbf{Spring from the right neighbor} (bead $i+1$). Same
+    formula, opposite direction.
+\end{enumerate}
+
+An optional viscous \textbf{damping} force along each rod resists relative
+motion between neighbors. The total force is:
+\begin{equation}
+    \mathbf{F}_i = \mathbf{F}^{\text{grav}}_i
+                 + \mathbf{F}^{\text{left}}_i
+                 + \mathbf{F}^{\text{right}}_i
+                 + \mathbf{F}^{\text{damp}}_i
+\end{equation}
+
+\paragraph{Step 2: Acceleration} from Newton's second law:
+\begin{equation}
+    \mathbf{a}_i = \frac{\mathbf{F}_i}{m}
+\end{equation}
+
+\paragraph{Step 3: Update velocity \emph{first}.}
+\begin{equation}
+    \mathbf{v}_i^{\text{new}}
+    = \mathbf{v}_i + \Delta t \;\mathbf{a}_i
+\end{equation}
+
+\paragraph{Step 4: Update position using the \emph{new} velocity.}
+\begin{equation}
+    \mathbf{x}_i^{\text{new}}
+    = \mathbf{x}_i + \Delta t \;\mathbf{v}_i^{\text{new}}
+\end{equation}
+
+The ordering---velocity first, then position with the updated velocity---is
+what makes this \emph{symplectic} Euler rather than plain (explicit) Euler.
+A small difference in code, but it is what keeps the total energy from
+drifting over long simulations.
+
+\paragraph{Numerical example.}
+Suppose bead~5 is at $\mathbf{x} = (0.5,\, -0.3)$ with velocity
+$\mathbf{v} = (0.1,\, -2.0)\;\text{m/s}$, and the total force on it works
+out to $\mathbf{F} = (3.0,\, -4.0)\;\text{N}$ with
+$m = 0.025\;\text{kg}$:
+
+\begin{align}
+    \mathbf{a}
+      &= \frac{(3.0,\;-4.0)}{0.025}
+       = (120,\;-160)\;\text{m/s}^2 \\[6pt]
+    \mathbf{v}^{\text{new}}
+      &= (0.1,\;-2.0) + 0.0001 \times (120,\;-160)
+       = (0.112,\;-2.016)\;\text{m/s} \\[6pt]
+    \mathbf{x}^{\text{new}}
+      &= (0.5,\;-0.3) + 0.0001 \times (0.112,\;-2.016)
+       = (0.500011,\;-0.300202)\;\text{m}
+\end{align}
+
+Each bead moves a tiny amount per step. With $\Delta t = 0.0001\;\text{s}$
+and a $5\;\text{s}$ simulation, we take 50{,}000 such steps. Each step is
+the same simple sequence: forces $\to$ acceleration $\to$ new velocity
+$\to$ new position.
+
+\subsubsection{Parameters}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lrl}
+\toprule
+Parameter & Value & Notes \\
+\midrule
+Stiffness $k$ & $10{,}000\;\text{N/m}$ & High enough for $<1\%$ stretch \\
+Damping $c$ & $0.5$ & Physical energy dissipation \\
+Timestep $\Delta t$ & $0.0001\;\text{s}$ & Stable for $k=10^4$ \\
+Duration & $5.0\;\text{s}$ & ${\sim}1.75$ swing periods \\
+Save interval & 50 steps & 1001 output frames \\
+\bottomrule
+\end{tabular}
+\caption{Default simulation parameters.}
+\label{tab:params}
+\end{table}
+
+\subsubsection{Stability Criterion}
+
+For symplectic Euler with a spring of stiffness $k$ and mass $m$, the
+stability limit is:
+
+\begin{equation}
+    \Delta t < 2\sqrt{\frac{m}{k}}
+    = 2\sqrt{\frac{0.025}{10{,}000}}
+    = 0.00316\;\text{s}
+\end{equation}
+
+Our timestep $\Delta t = 0.0001\;\text{s}$ is well within this limit
+(factor of 31$\times$ safety margin).
+
+\subsubsection{Results}
+
+\begin{itemize}
+    \item \textbf{Energy conservation (undamped, $c=0$)}: Excellent.
+          Total energy oscillates within $\pm 0.04\;\text{J}$ over
+          $5\;\text{s}$ with no systematic drift. This is the expected
+          behavior for a symplectic integrator.
+    \item \textbf{Energy dissipation (damped, $c=0.5$)}: Total energy
+          decreases monotonically from $0$ to $\sim -1.6\;\text{J}$,
+          confirming the damping acts as a physical energy sink.
+    \item \textbf{Constraint satisfaction}: Maximum rod stretch $<1\%$ at
+          $k = 10^4$. Occasional peaks to $\sim 3\%$ during high-velocity
+          events (tip snap).
+    \item \textbf{Qualitative behavior}: Chain falls, swings through the
+          vertical, overshoots to the opposite side, and gradually settles
+          due to damping. Physically correct.
+\end{itemize}
+
+\subsubsection{Why It Works}
+
+\begin{enumerate}
+    \item \textbf{Symplectic structure}: The semi-implicit Euler scheme
+          preserves the symplectic form of Hamiltonian mechanics, meaning
+          energy oscillates around the true value but doesn't drift.
+    \item \textbf{No iterative projection}: Unlike SHAKE, there is no
+          iterative constraint solve. Forces are computed explicitly from
+          positions, making each timestep $O(N)$ with a small constant.
+    \item \textbf{Tunable stiffness}: The spring constant $k$ provides a
+          direct physical knob. Increasing $k$ reduces stretch at the cost
+          of requiring smaller $\Delta t$.
+    \item \textbf{GNN compatibility}: The force computation
+          (Eq.~\ref{eq:spring}) is a local, pairwise message along edges
+          --- exactly the computation a GNN learns to approximate.
+\end{enumerate}
+
+% ==========================================================================
+\section{Implementation}
+% ==========================================================================
+
+\subsection{Code Structure}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{ll}
+\toprule
+File & Purpose \\
+\midrule
+\texttt{simulation.py} & Chain state, force computation, time integration \\
+\texttt{visualize.py}   & Matplotlib animation and energy diagnostics \\
+\texttt{main.py}        & CLI runner, parameter config, \texttt{.npz} export \\
+\bottomrule
+\end{tabular}
+\caption{Source files.}
+\end{table}
+
+\subsection{Data Export Format}
+
+Simulation output is saved as a NumPy \texttt{.npz} archive with the
+following arrays, designed for direct consumption by a GNN:
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lll}
+\toprule
+Key & Shape & Description \\
+\midrule
+\texttt{positions}      & $(T, N, 2)$ & Node positions per frame \\
+\texttt{velocities}     & $(T, N, 2)$ & Node velocities per frame \\
+\texttt{accelerations}  & $(T, N, 2)$ & Node accelerations (training target) \\
+\texttt{edge\_index}    & $(2, 2E)$   & Bidirectional edge connectivity \\
+\texttt{node\_types}    & $(N,)$      & $0$ = free, $1$ = fixed \\
+\texttt{rest\_lengths}  & $(E,)$      & Element rest lengths \\
+\texttt{times}          & $(T,)$      & Timestamps \\
+\bottomrule
+\end{tabular}
+\caption{Data export format. $T$ = saved frames, $N$ = nodes, $E$ = elements.}
+\label{tab:data}
+\end{table}
+
+Scalar metadata (\texttt{dt}, \texttt{gravity}, \texttt{stiffness},
+\texttt{damping}, \texttt{n\_nodes}, etc.) is also included.
+
+% ==========================================================================
+\section{Validation}
+% ==========================================================================
+
+\subsection{Energy Conservation}
+
+With zero damping ($c = 0$), the symplectic Euler integrator conserves total
+energy (kinetic + gravitational potential + elastic potential) to within
+$\pm 0.04\;\text{J}$ over $5\;\text{s}$ of simulation. The energy
+oscillates symmetrically without drift, confirming the symplectic property.
+
+With damping ($c = 0.5$), total energy decreases monotonically as expected.
+
+\subsection{Constraint Fidelity}
+
+Rod element lengths remain within $1\%$ of their rest length for most of
+the simulation, with brief excursions to $\sim 3\%$ during high-velocity
+tip motion. This is acceptable for GNN training data and can be tightened by
+increasing $k$ (with proportionally smaller $\Delta t$).
+
+\subsection{Qualitative Behavior}
+
+The chain exhibits the expected physics:
+\begin{itemize}
+    \item Initial free-fall of the tip end.
+    \item Wave propagation from the free end toward the anchor.
+    \item Pendulum-like swinging with the chain curving under inertia.
+    \item Gradual damping to the vertical equilibrium.
+\end{itemize}
+
+% ==========================================================================
+\section{Next Steps}
+% ==========================================================================
+
+\begin{enumerate}
+    \item \textbf{Batch data generation}: Run simulations with varied
+          parameters (stiffness, damping, chain length, number of nodes,
+          initial angle) to create a diverse training dataset.
+    \item \textbf{GNN surrogate model}: Train a message-passing GNN to
+          predict $\mathbf{a}_{n+1}$ from
+          $(\mathbf{x}_n, \mathbf{v}_n, \text{edge\_attr})$, replacing
+          the force computation.
+    \item \textbf{Whip extensions}: Add tapered cross-section (decreasing
+          mass toward the tip) and prescribed handle motion to model actual
+          whip crack dynamics.
+    \item \textbf{3D extension}: Generalize from 2D planar to 3D spatial
+          chain.
+\end{enumerate}
+
+% ==========================================================================
+\section{Changelog}
+\label{sec:changelog}
+% ==========================================================================
+
+\begin{description}
+    \item[2026-03-12] Initial report. Documented SHAKE (failed) and
+          symplectic Euler (successful) formulations. Simulation validated
+          for energy conservation and constraint fidelity. GNN-ready data
+          export implemented.
+\end{description}
+
+\end{document}

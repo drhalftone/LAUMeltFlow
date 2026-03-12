@@ -13,9 +13,16 @@ struct Rod {
     double restLength;
 };
 
+/// One snapshot of the full chain state at a single timestep.
+struct FrameRecord {
+    double time;
+    QVector<QVector2D> positions;
+    QVector<QVector2D> velocities;
+};
+
 /// Coordinator that owns all beads and rods, wires up signals/slots,
 /// and drives the two-phase timestep:
-///   Phase 1: broadcast neighbor states → beads accumulate forces
+///   Phase 1: broadcast neighbor states -> beads accumulate forces
 ///   Phase 2: all beads integrate simultaneously
 ///
 class ChainSimulator : public QObject {
@@ -32,6 +39,13 @@ public:
     /// Advance the simulation by one timestep.
     void step(double dt, double gravity);
 
+    // Recording
+    void setRecording(bool on) { m_recording = on; }
+    bool isRecording() const { return m_recording; }
+    void recordFrame(double time);
+    const QVector<FrameRecord> &recording() const { return m_frames; }
+    void clearRecording() { m_frames.clear(); }
+
     // Accessors for the renderer
     int beadCount() const { return m_beads.size(); }
     const Bead *bead(int i) const { return m_beads[i]; }
@@ -44,4 +58,7 @@ signals:
 private:
     QVector<Bead *> m_beads;
     QVector<Rod> m_rods;
+
+    bool m_recording = false;
+    QVector<FrameRecord> m_frames;
 };

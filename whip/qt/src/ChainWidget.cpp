@@ -90,8 +90,14 @@ void ChainWidget::paintEvent(QPaintEvent * /*event*/)
 
     // ── Info text ──────────────────────────────────────────────────
     {
+        const Bead *tip = m_sim->bead(n - 1);
+        double tipSpeed = std::sqrt(tip->vel().x() * tip->vel().x()
+                                  + tip->vel().y() * tip->vel().y());
+
         p.setPen(QColor(200, 200, 200));
         p.setFont(QFont("Consolas", 10));
-        p.drawText(10, 20, QString("Beads: %1").arg(n));
+        p.drawText(10, 20, QString("t = %1 s  |  tip: %2 m/s")
+                   .arg(m_simTime, 0, 'f', 3)
+                   .arg(tipSpeed, 0, 'f', 1));
     }
 }

@@ -20,6 +20,8 @@ public:
     /// Map from simulation (physics) coordinates to widget pixels.
     QPointF toScreen(float sx, float sy) const;
 
+    void setSimTime(double t) { m_simTime = t; }
+
 public slots:
     void onSimStepped();
 
@@ -28,6 +30,7 @@ protected:
 
 private:
     ChainSimulator *m_sim;
+    double m_simTime = 0.0;
 
     // View parameters (auto-fit to chain extent)
     double m_scale = 150.0;    // pixels per meter

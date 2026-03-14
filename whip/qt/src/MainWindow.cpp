@@ -11,6 +11,7 @@
 #include <QSpinBox>
 #include <QPushButton>
 #include <QLabel>
+#include <QCheckBox>
 #include <QStatusBar>
 #include <QFileDialog>
 #include <QFile>
@@ -43,7 +44,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     m_spinBeads = new QSpinBox;
     m_spinBeads->setRange(3, 200);
-    m_spinBeads->setValue(20);
+    m_spinBeads->setValue(15);
     form->addRow("Beads:", m_spinBeads);
 
     m_spinLength = new QDoubleSpinBox;
@@ -70,7 +71,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     m_spinDamping = new QDoubleSpinBox;
     m_spinDamping->setRange(0.0, 100.0);
-    m_spinDamping->setValue(2.0);
+    m_spinDamping->setValue(0.5);
     m_spinDamping->setDecimals(2);
     form->addRow("Damping:", m_spinDamping);
 
@@ -80,6 +81,19 @@ MainWindow::MainWindow(QWidget *parent)
     m_spinDrag->setDecimals(3);
     m_spinDrag->setSingleStep(0.01);
     form->addRow("Drag:", m_spinDrag);
+
+    m_spinTaper = new QDoubleSpinBox;
+    m_spinTaper->setRange(1.0, 50.0);
+    m_spinTaper->setValue(10.0);
+    m_spinTaper->setDecimals(1);
+    m_spinTaper->setSingleStep(1.0);
+    m_spinTaper->setToolTip("Mass ratio base/tip (1 = uniform, >1 = tapered whip)");
+    form->addRow("Taper ratio:", m_spinTaper);
+
+    m_chkConstraints = new QCheckBox("Enable");
+    m_chkConstraints->setChecked(true);
+    m_chkConstraints->setToolTip("SHAKE constraint projection for inextensible rods");
+    form->addRow("Constraints:", m_chkConstraints);
 
     m_spinGravity = new QDoubleSpinBox;
     m_spinGravity->setRange(0.0, 100.0);
@@ -98,7 +112,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     m_spinSubSteps = new QSpinBox;
     m_spinSubSteps->setRange(1, 1000);
-    m_spinSubSteps->setValue(500);
+    m_spinSubSteps->setValue(50);
     form->addRow("Sub-steps/frame:", m_spinSubSteps);
 
     panelLayout->addWidget(paramGroup);
@@ -145,13 +159,16 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_timer, &QTimer::timeout, this, &MainWindow::tick);
 
     // Build the initial chain so beads are visible before Start
+    m_sim->setUseConstraints(m_chkConstraints->isChecked());
     m_sim->buildChain(
         m_spinBeads->value(),
         m_spinLength->value(),
         m_spinMass->value(),
         m_spinStiffness->value(),
         m_spinDamping->value(),
-        m_spinDrag->value()
+        m_spinDrag->value(),
+        QVector2D(0, 0),
+        m_spinTaper->value()
     );
 
     statusBar()->showMessage("Ready");
@@ -165,6 +182,8 @@ void MainWindow::setParamsEnabled(bool on)
     m_spinStiffness->setEnabled(on);
     m_spinDamping->setEnabled(on);
     m_spinDrag->setEnabled(on);
+    m_spinTaper->setEnabled(on);
+    m_chkConstraints->setEnabled(on);
     m_spinGravity->setEnabled(on);
     m_spinDt->setEnabled(on);
     m_spinSubSteps->setEnabled(on);
@@ -179,8 +198,11 @@ void MainWindow::buildAndStart(bool recording)
         m_spinMass->value(),
         m_spinStiffness->value(),
         m_spinDamping->value(),
-        m_spinDrag->value()
+        m_spinDrag->value(),
+        QVector2D(0, 0),
+        m_spinTaper->value()
     );
+    m_sim->setUseConstraints(m_chkConstraints->isChecked());
 
     m_sim->setRecording(recording);
     m_sim->clearRecording();
@@ -215,7 +237,9 @@ void MainWindow::onStartReset()
             m_spinMass->value(),
             m_spinStiffness->value(),
             m_spinDamping->value(),
-            m_spinDrag->value()
+            m_spinDrag->value(),
+            QVector2D(0, 0),
+            m_spinTaper->value()
         );
         m_view->update();
         statusBar()->showMessage("Reset — press Start");
@@ -302,6 +326,7 @@ void MainWindow::tick()
         m_simTime += dt;
     }
 
+    m_view->setSimTime(m_simTime);
     statusBar()->showMessage(
         QString("t = %1 s").arg(m_simTime, 0, 'f', 3));
 }

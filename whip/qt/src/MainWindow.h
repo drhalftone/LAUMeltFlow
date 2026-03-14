@@ -5,6 +5,7 @@
 
 class QDoubleSpinBox;
 class QSpinBox;
+class QCheckBox;
 class QPushButton;
 class QLabel;
 class ChainSimulator;
@@ -43,6 +44,8 @@ private:
     QDoubleSpinBox *m_spinStiffness;
     QDoubleSpinBox *m_spinDamping;
     QDoubleSpinBox *m_spinDrag;
+    QDoubleSpinBox *m_spinTaper;
+    QCheckBox      *m_chkConstraints;
     QDoubleSpinBox *m_spinGravity;
     QDoubleSpinBox *m_spinDt;
     QSpinBox       *m_spinSubSteps;

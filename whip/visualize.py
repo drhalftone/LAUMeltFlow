@@ -54,7 +54,9 @@ def animate_chain(
     ax.set_aspect("equal")
     ax.set_xlabel("x (m)")
     ax.set_ylabel("y (m)")
-    ax.set_title("Bead Chain - Gravity Release")
+    taper = trajectory.get("taper_ratio", 1.0)
+    title = "Whip Crack" if taper > 1.0 else "Bead Chain"
+    ax.set_title(title)
     ax.grid(True, alpha=0.3)
 
     # Draw elements
@@ -63,7 +65,12 @@ def animate_chain(
         (line,) = ax.plot([], [], "b-", linewidth=1.5, alpha=0.7)
         lines.append(line)
 
-    # Draw nodes
+    # Draw nodes — size proportional to mass if available
+    node_mass = trajectory.get("node_mass", None)
+    if node_mass is not None:
+        node_sizes = 3 + 12 * (node_mass / node_mass.max())
+    else:
+        node_sizes = np.full(n_nodes, 5.0)
     (nodes_plot,) = ax.plot([], [], "ko", markersize=5, zorder=5)
 
     # Fixed node marker
@@ -101,8 +108,10 @@ def animate_chain(
         # Anchor
         anchor_plot.set_data([pos[0, 0]], [pos[0, 1]])
 
-        # Time
-        time_text.set_text(f"t = {trajectory['times'][frame]:.3f} s")
+        # Time and tip speed
+        vels = trajectory["velocities"]
+        tip_speed = np.linalg.norm(vels[frame, -1])
+        time_text.set_text(f"t = {trajectory['times'][frame]:.3f} s  |  tip: {tip_speed:.1f} m/s")
 
         # Trail
         if trail:
@@ -132,50 +141,41 @@ def animate_chain(
     return anim
 
 
-def plot_energy(trajectory: dict, gravity: float = 9.81):
+def plot_energy(trajectory: dict):
     """
-    Plot kinetic, potential, and total energy over time.
+    Plot kinetic, potential (gravitational + elastic), and total energy.
 
+    Uses the precomputed energy array from run_simulation().
     Total energy should be approximately conserved (symplectic integrator).
     Small oscillations are expected; drift indicates a problem.
     """
-    positions = trajectory["positions"]
-    velocities = trajectory["velocities"]
     times = trajectory["times"]
-    n_nodes = positions.shape[1]
+    energy = trajectory["energy"]  # (n_frames, 4): KE, GPE, EPE, Total
 
-    # Recover mass per node
-    total_mass = trajectory["total_mass"]
-    mass = total_mass / n_nodes
+    KE = energy[:, 0]
+    GPE = energy[:, 1]
+    EPE = energy[:, 2]
+    TE = energy[:, 3]
 
-    n_frames = len(times)
-    KE = np.zeros(n_frames)
-    PE = np.zeros(n_frames)
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
 
-    for t in range(n_frames):
-        vel = velocities[t]
-        pos = positions[t]
-        # KE = sum 0.5 * m * |v|^2 (skip fixed node)
-        KE[t] = 0.5 * mass * np.sum(vel[1:] ** 2)
-        # PE = sum m * g * y (skip fixed node, relative to anchor)
-        PE[t] = mass * gravity * np.sum(pos[1:, 1])
+    # Energy components
+    ax1.plot(times, KE, label="Kinetic", color="red", alpha=0.8)
+    ax1.plot(times, GPE, label="Gravitational PE", color="blue", alpha=0.8)
+    ax1.plot(times, EPE, label="Elastic PE", color="green", alpha=0.8)
+    ax1.plot(times, TE, label="Total", color="black", linewidth=2)
+    ax1.set_ylabel("Energy (J)")
+    ax1.set_title("Energy Components")
+    ax1.legend()
+    ax1.grid(True, alpha=0.3)
 
-    TE = KE + PE
-
-    fig, ax = plt.subplots(figsize=(10, 5))
-    ax.plot(times, KE, label="Kinetic", color="red", alpha=0.8)
-    ax.plot(times, PE, label="Potential", color="blue", alpha=0.8)
-    ax.plot(times, TE, label="Total", color="black", linewidth=2)
-    ax.set_xlabel("Time (s)")
-    ax.set_ylabel("Energy (J)")
-    ax.set_title("Energy Conservation Check")
-    ax.legend()
-    ax.grid(True, alpha=0.3)
-
-    # Report drift
-    drift = (TE[-1] - TE[0]) / abs(TE[0]) * 100 if abs(TE[0]) > 1e-12 else 0
-    ax.text(0.98, 0.02, f"Energy drift: {drift:.2f}%",
-            transform=ax.transAxes, ha="right", fontsize=9)
+    # Energy drift (relative to initial)
+    drift = TE - TE[0]
+    ax2.plot(times, drift, "k-", linewidth=1.5)
+    ax2.set_xlabel("Time (s)")
+    ax2.set_ylabel("Energy drift (J)")
+    ax2.set_title(f"Total Energy Drift (final: {drift[-1]:.4e} J)")
+    ax2.grid(True, alpha=0.3)
 
     plt.tight_layout()
     plt.show()

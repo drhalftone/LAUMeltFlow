@@ -24,6 +24,7 @@ struct FrameRecord {
 /// and drives the two-phase timestep:
 ///   Phase 1: broadcast neighbor states -> beads accumulate forces
 ///   Phase 2: all beads integrate simultaneously
+///   Phase 3 (optional): SHAKE constraint projection
 ///
 class ChainSimulator : public QObject {
     Q_OBJECT
@@ -32,12 +33,20 @@ public:
     explicit ChainSimulator(QObject *parent = nullptr);
 
     /// Build a horizontal chain of n beads, fixed at the left end.
+    /// taperRatio: mass ratio base/tip (1.0 = uniform, >1 = whip taper).
     void buildChain(int nBeads, double totalLength, double totalMass,
                     double stiffness, double damping, double drag = 0.0,
-                    QVector2D anchorPos = QVector2D(0, 0));
+                    QVector2D anchorPos = QVector2D(0, 0),
+                    double taperRatio = 1.0);
 
     /// Advance the simulation by one timestep.
     void step(double dt, double gravity);
+
+    /// Enable/disable SHAKE constraint projection for inextensible rods.
+    void setUseConstraints(bool on) { m_useConstraints = on; }
+    bool useConstraints() const { return m_useConstraints; }
+    void setConstraintIters(int n) { m_constraintIters = n; }
+    int constraintIters() const { return m_constraintIters; }
 
     // Recording
     void setRecording(bool on) { m_recording = on; }
@@ -56,8 +65,13 @@ signals:
     void stepped();
 
 private:
+    void projectConstraints();
+
     QVector<Bead *> m_beads;
     QVector<Rod> m_rods;
+
+    bool m_useConstraints = false;
+    int m_constraintIters = 10;
 
     bool m_recording = false;
     QVector<FrameRecord> m_frames;

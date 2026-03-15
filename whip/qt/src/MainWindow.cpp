@@ -44,7 +44,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     m_spinBeads = new QSpinBox;
     m_spinBeads->setRange(3, 200);
-    m_spinBeads->setValue(15);
+    m_spinBeads->setValue(16);
     form->addRow("Beads:", m_spinBeads);
 
     m_spinLength = new QDoubleSpinBox;

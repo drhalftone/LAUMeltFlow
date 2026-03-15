@@ -1,0 +1,9 @@
+data/input/
+data/target/
+data/training_data.npz
+data/graph.npz
+gnn/outputs/
+outputs/
+qt/build/
+__pycache__/
+*.pyc

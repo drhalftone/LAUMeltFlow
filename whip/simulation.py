@@ -213,7 +213,8 @@ def step_symplectic_euler(
     gravity: float = 9.81,
     use_constraints: bool = False,
     constraint_iters: int = 10,
-) -> np.ndarray:
+    capture_shake: bool = False,
+) -> tuple:
     """
     One symplectic Euler timestep with optional constraint projection.
 
@@ -222,11 +223,17 @@ def step_symplectic_euler(
       x_{n+1} = x_n + dt * v_{n+1}
 
     If use_constraints=True, applies SHAKE-like projection after the
-    position update to enforce rod inextensibility. This allows using
-    lower spring stiffness (or zero) since constraints handle the
-    length preservation.
+    position update to enforce rod inextensibility.
 
-    Returns acceleration (n_nodes, 2).
+    If capture_shake=True, returns the state before and after SHAKE
+    for training data collection.
+
+    Returns (acc, shake_data) where shake_data is None unless
+    capture_shake=True, in which case it is a dict with:
+      pre_pos, pre_vel:   state after integration, before SHAKE
+      post_pos, post_vel: state after SHAKE
+      pos_correction:     post_pos - pre_pos
+      vel_correction:     post_vel - pre_vel
     """
     forces = compute_forces(state, gravity)
     acc = forces / state.mass[:, None]
@@ -241,11 +248,26 @@ def step_symplectic_euler(
     # Then update position with new velocity
     state.pos += dt * state.vel
 
-    # Project constraints to enforce inextensibility
+    # Capture pre-SHAKE state if requested
+    shake_data = None
     if use_constraints:
+        if capture_shake:
+            pre_pos = state.pos.copy()
+            pre_vel = state.vel.copy()
+
         project_constraints(state, dt, n_iters=constraint_iters)
 
-    return acc
+        if capture_shake:
+            shake_data = {
+                "pre_pos": pre_pos,
+                "pre_vel": pre_vel,
+                "post_pos": state.pos.copy(),
+                "post_vel": state.vel.copy(),
+                "pos_correction": state.pos - pre_pos,
+                "vel_correction": state.vel - pre_vel,
+            }
+
+    return acc, shake_data
 
 
 def whip_crack_motion(t: float, anchor_origin: np.ndarray,
@@ -372,9 +394,9 @@ def run_simulation(
             pct = 100 * step_num / n_steps
             print(f"\r  Simulating... {pct:.0f}%", end="", flush=True)
 
-        acc = step_symplectic_euler(state, dt, gravity,
-                                   use_constraints=use_constraints,
-                                   constraint_iters=constraint_iters)
+        acc, _ = step_symplectic_euler(state, dt, gravity,
+                                      use_constraints=use_constraints,
+                                      constraint_iters=constraint_iters)
 
         # Apply anchor motion or re-pin
         if anchor_motion is not None:
@@ -431,5 +453,236 @@ def run_simulation(
         "total_length": total_length,
         "stiffness": stiffness,
         "damping": damping,
+        "taper_ratio": taper_ratio,
+    }
+
+
+def build_tree_edges(n_beads: int) -> dict:
+    """
+    Build binary tree connectivity for n_beads (must be power of 2).
+
+    Returns a dict with:
+      tree_edges:     (n_tree_edges, 2) parent-child pairs
+      n_total_nodes:  total nodes (beads + interior)
+      node_levels:    (n_total_nodes,) level of each node (0=bead, 1..log2=interior)
+      parent_of:      (n_total_nodes,) parent index (-1 for root)
+      children_of:    dict mapping interior node -> (left_child, right_child)
+    """
+    assert n_beads > 0 and (n_beads & (n_beads - 1)) == 0, \
+        f"n_beads must be power of 2, got {n_beads}"
+
+    n_levels = int(np.log2(n_beads)) + 1  # including bead level
+    n_interior = n_beads - 1
+    n_total = n_beads + n_interior
+
+    node_levels = np.zeros(n_total, dtype=np.int32)
+    parent_of = np.full(n_total, -1, dtype=np.int32)
+    children_of = {}
+    tree_edges = []
+
+    # Build bottom-up: pair nodes at each level
+    # Level 0 nodes are 0..n_beads-1
+    # Level 1 nodes are n_beads..n_beads+n_beads//2-1
+    # etc.
+    current_level_nodes = list(range(n_beads))
+    next_id = n_beads
+
+    for level in range(1, n_levels):
+        next_level_nodes = []
+        for i in range(0, len(current_level_nodes), 2):
+            left = current_level_nodes[i]
+            right = current_level_nodes[i + 1]
+            parent = next_id
+            next_id += 1
+
+            node_levels[parent] = level
+            parent_of[left] = parent
+            parent_of[right] = parent
+            children_of[parent] = (left, right)
+
+            # Bidirectional edges
+            tree_edges.append([parent, left])
+            tree_edges.append([parent, right])
+            tree_edges.append([left, parent])
+            tree_edges.append([right, parent])
+
+            next_level_nodes.append(parent)
+
+        current_level_nodes = next_level_nodes
+
+    tree_edges = np.array(tree_edges, dtype=np.int32)
+
+    return {
+        "tree_edges": tree_edges,
+        "n_total_nodes": n_total,
+        "n_interior": n_interior,
+        "n_levels": n_levels,
+        "node_levels": node_levels,
+        "parent_of": parent_of,
+        "children_of": children_of,
+        "root": n_total - 1,
+    }
+
+
+def generate_training_data(
+    n_nodes: int = 16,
+    total_length: float = 2.0,
+    total_mass: float = 0.5,
+    gravity: float = 9.81,
+    stiffness: float = 1e4,
+    damping: float = 0.5,
+    drag: float = 0.02,
+    dt: float = 0.0001,
+    n_steps: int = 30000,
+    save_interval: int = 50,
+    taper_ratio: float = 10.0,
+    constraint_iters: int = 10,
+) -> dict:
+    """
+    Run simulation and collect SHAKE input/output pairs for U-Net training.
+
+    For each saved frame, captures the state before and after SHAKE
+    constraint projection, providing clean input/output pairs.
+
+    Returns a dict with:
+      pre_shake_pos:    (n_saved, n_nodes, 2) positions before SHAKE
+      pre_shake_vel:    (n_saved, n_nodes, 2) velocities before SHAKE
+      post_shake_pos:   (n_saved, n_nodes, 2) positions after SHAKE
+      post_shake_vel:   (n_saved, n_nodes, 2) velocities after SHAKE
+      pos_corrections:  (n_saved, n_nodes, 2) position deltas from SHAKE
+      vel_corrections:  (n_saved, n_nodes, 2) velocity deltas from SHAKE
+      chain_edges:      (2, 2*n_edges) bidirectional chain connectivity
+      tree:             dict from build_tree_edges()
+      node_mass:        (n_nodes,) per-node mass
+      node_types:       (n_nodes,) 0=free, 1=fixed
+      rest_lengths:     (n_edges,) rod rest lengths
+      times:            (n_saved,)
+      energy_pre:       (n_saved, 4) energy before SHAKE
+      energy_post:      (n_saved, 4) energy after SHAKE
+    """
+    assert n_nodes > 0 and (n_nodes & (n_nodes - 1)) == 0, \
+        f"n_nodes must be power of 2, got {n_nodes}"
+
+    state = create_chain(n_nodes, total_length, total_mass,
+                         stiffness, damping, drag,
+                         taper_ratio=taper_ratio)
+    anchor_origin = state.pos[0].copy()
+    tree = build_tree_edges(n_nodes)
+
+    # Preallocate
+    n_saved = n_steps // save_interval + 1
+    pre_shake_pos = np.zeros((n_saved, n_nodes, 2))
+    pre_shake_vel = np.zeros((n_saved, n_nodes, 2))
+    post_shake_pos = np.zeros((n_saved, n_nodes, 2))
+    post_shake_vel = np.zeros((n_saved, n_nodes, 2))
+    pos_corrections = np.zeros((n_saved, n_nodes, 2))
+    vel_corrections = np.zeros((n_saved, n_nodes, 2))
+    energy_pre = np.zeros((n_saved, 4))
+    energy_post = np.zeros((n_saved, 4))
+    times = np.zeros(n_saved)
+
+    # Initial state (no SHAKE needed at t=0)
+    pre_shake_pos[0] = state.pos.copy()
+    pre_shake_vel[0] = state.vel.copy()
+    post_shake_pos[0] = state.pos.copy()
+    post_shake_vel[0] = state.vel.copy()
+    e0 = compute_energy(state, gravity)
+    energy_pre[0] = [e0["kinetic"], e0["gravitational"], e0["elastic"], e0["total"]]
+    energy_post[0] = energy_pre[0]
+    times[0] = 0.0
+    save_idx = 1
+
+    print_interval = max(1, n_steps // 10)
+    for step_num in range(1, n_steps + 1):
+        t = step_num * dt
+
+        if step_num % print_interval == 0:
+            pct = 100 * step_num / n_steps
+            print(f"\r  Generating training data... {pct:.0f}%", end="", flush=True)
+
+        # Only capture SHAKE data on save frames
+        capture = (step_num % save_interval == 0) and (save_idx < n_saved)
+
+        acc, shake_data = step_symplectic_euler(
+            state, dt, gravity,
+            use_constraints=True,
+            constraint_iters=constraint_iters,
+            capture_shake=capture,
+        )
+
+        # Re-pin anchor
+        state.pos[0] = anchor_origin
+        state.vel[0] = 0.0
+
+        if capture:
+            pre_shake_pos[save_idx] = shake_data["pre_pos"]
+            pre_shake_vel[save_idx] = shake_data["pre_vel"]
+            post_shake_pos[save_idx] = shake_data["post_pos"]
+            post_shake_vel[save_idx] = shake_data["post_vel"]
+            pos_corrections[save_idx] = shake_data["pos_correction"]
+            vel_corrections[save_idx] = shake_data["vel_correction"]
+
+            # Energy before and after SHAKE
+            # Temporarily set state to pre-SHAKE to compute energy
+            saved_pos = state.pos.copy()
+            saved_vel = state.vel.copy()
+            state.pos = shake_data["pre_pos"]
+            state.vel = shake_data["pre_vel"]
+            e_pre = compute_energy(state, gravity)
+            energy_pre[save_idx] = [e_pre["kinetic"], e_pre["gravitational"],
+                                    e_pre["elastic"], e_pre["total"]]
+            state.pos = saved_pos
+            state.vel = saved_vel
+            e_post = compute_energy(state, gravity)
+            energy_post[save_idx] = [e_post["kinetic"], e_post["gravitational"],
+                                     e_post["elastic"], e_post["total"]]
+
+            times[save_idx] = t
+            save_idx += 1
+
+    print("\r  Generating training data... done.       ")
+
+    # Trim
+    pre_shake_pos = pre_shake_pos[:save_idx]
+    pre_shake_vel = pre_shake_vel[:save_idx]
+    post_shake_pos = post_shake_pos[:save_idx]
+    post_shake_vel = post_shake_vel[:save_idx]
+    pos_corrections = pos_corrections[:save_idx]
+    vel_corrections = vel_corrections[:save_idx]
+    energy_pre = energy_pre[:save_idx]
+    energy_post = energy_post[:save_idx]
+    times = times[:save_idx]
+
+    # Chain edges (bidirectional)
+    fwd = state.edges
+    bwd = state.edges[:, ::-1]
+    chain_edges = np.concatenate([fwd, bwd], axis=0).T
+
+    # Node types
+    node_types = np.zeros(n_nodes, dtype=np.int32)
+    node_types[0] = 1
+
+    return {
+        "pre_shake_pos": pre_shake_pos,
+        "pre_shake_vel": pre_shake_vel,
+        "post_shake_pos": post_shake_pos,
+        "post_shake_vel": post_shake_vel,
+        "pos_corrections": pos_corrections,
+        "vel_corrections": vel_corrections,
+        "chain_edges": chain_edges,
+        "tree_edges": tree.pop("tree_edges"),
+        "tree_meta": tree,
+        "node_mass": state.mass.copy(),
+        "node_types": node_types,
+        "rest_lengths": state.rest_lengths.copy(),
+        "times": times,
+        "energy_pre": energy_pre,
+        "energy_post": energy_post,
+        "dt": dt,
+        "gravity": gravity,
+        "n_nodes": n_nodes,
+        "stiffness": stiffness,
+        "damping": damping,
+        "drag": drag,
         "taper_ratio": taper_ratio,
     }

@@ -6,7 +6,7 @@ import matplotlib.animation as animation
 from simulation import create_chain, step_symplectic_euler
 
 # --- Simulation parameters ---
-N_NODES = 15
+N_NODES = 16
 TOTAL_LENGTH = 2.0
 TOTAL_MASS = 0.5
 GRAVITY = 9.81

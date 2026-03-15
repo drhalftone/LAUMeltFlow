@@ -1,0 +1,199 @@
+"""Train the U-Net GNN to learn SHAKE constraint projection.
+
+Usage:
+    python train.py
+    python train.py --data_dir data --epochs 200 --hidden_dim 64 --lr 1e-3
+"""
+
+import os
+import argparse
+import numpy as np
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader, random_split
+from dataset import BeadChainDataset
+from model import BeadChainUNet
+
+
+def train(args):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Device: {device}")
+
+    # --- Dataset ---
+    dataset = BeadChainDataset(args.data_dir)
+
+    # Train/val split (90/10)
+    n_val = max(1, len(dataset) // 10)
+    n_train = len(dataset) - n_val
+    train_set, val_set = random_split(
+        dataset, [n_train, n_val],
+        generator=torch.Generator().manual_seed(42)
+    )
+    print(f"Train: {n_train}, Val: {n_val}")
+
+    train_loader = DataLoader(train_set, batch_size=args.batch_size,
+                              shuffle=True, num_workers=0)
+    val_loader = DataLoader(val_set, batch_size=args.batch_size,
+                            shuffle=False, num_workers=0)
+
+    # Graph structure (shared, move to device once)
+    chain_edges = dataset.chain_edges.to(device)       # (2, 30)
+    tree_edge_index = dataset.tree_edge_index.to(device)  # (2, 60)
+    node_levels = dataset.node_levels.to(device)       # (31,)
+    n_total = dataset.n_total
+
+    # --- Model ---
+    model = BeadChainUNet(
+        input_dim=7,
+        output_dim=4,
+        hidden_dim=args.hidden_dim,
+        n_beads=dataset.n_beads,
+    ).to(device)
+
+    n_params = sum(p.numel() for p in model.parameters())
+    print(f"Model parameters: {n_params:,}")
+
+    # --- Training ---
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=args.epochs
+    )
+    criterion = nn.MSELoss()
+
+    os.makedirs(args.output_dir, exist_ok=True)
+
+    # Track losses
+    train_losses = []
+    val_losses = []
+    best_val_loss = float("inf")
+
+    for epoch in range(1, args.epochs + 1):
+        # --- Train ---
+        model.train()
+        epoch_loss = 0.0
+        for x_batch, y_batch in train_loader:
+            x_batch = x_batch.to(device)  # (B, 31, 7)
+            y_batch = y_batch.to(device)  # (B, 16, 4)
+
+            pred = model(x_batch, chain_edges, tree_edge_index,
+                         node_levels, n_total)
+
+            loss = criterion(pred, y_batch)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            epoch_loss += loss.item() * x_batch.shape[0]
+
+        epoch_loss /= n_train
+        train_losses.append(epoch_loss)
+
+        # --- Validate ---
+        model.eval()
+        val_loss = 0.0
+        with torch.no_grad():
+            for x_batch, y_batch in val_loader:
+                x_batch = x_batch.to(device)
+                y_batch = y_batch.to(device)
+                pred = model(x_batch, chain_edges, tree_edge_index,
+                             node_levels, n_total)
+                val_loss += criterion(pred, y_batch).item() * x_batch.shape[0]
+
+        val_loss /= n_val
+        val_losses.append(val_loss)
+
+        scheduler.step()
+
+        # --- Logging ---
+        lr = optimizer.param_groups[0]["lr"]
+        if epoch % args.log_every == 0 or epoch == 1:
+            print(f"Epoch {epoch:4d}/{args.epochs}  "
+                  f"train={epoch_loss:.2e}  val={val_loss:.2e}  lr={lr:.1e}")
+
+        # --- Save best ---
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            torch.save({
+                "epoch": epoch,
+                "model_state_dict": model.state_dict(),
+                "optimizer_state_dict": optimizer.state_dict(),
+                "val_loss": val_loss,
+                "args": vars(args),
+            }, os.path.join(args.output_dir, "best_model.pt"))
+
+    # --- Save final model ---
+    torch.save({
+        "epoch": args.epochs,
+        "model_state_dict": model.state_dict(),
+        "val_loss": val_losses[-1],
+        "args": vars(args),
+    }, os.path.join(args.output_dir, "final_model.pt"))
+
+    # --- Save loss curves ---
+    np.savez(
+        os.path.join(args.output_dir, "losses.npz"),
+        train=np.array(train_losses),
+        val=np.array(val_losses),
+    )
+
+    # --- Plot ---
+    try:
+        import matplotlib.pyplot as plt
+
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+
+        ax1.semilogy(train_losses, label="Train", alpha=0.8)
+        ax1.semilogy(val_losses, label="Val", alpha=0.8)
+        ax1.set_xlabel("Epoch")
+        ax1.set_ylabel("MSE Loss")
+        ax1.set_title("Training Loss")
+        ax1.legend()
+        ax1.grid(True, alpha=0.3)
+
+        # Show a sample prediction vs target
+        model.eval()
+        with torch.no_grad():
+            x_sample, y_sample = dataset[len(dataset) // 2]
+            x_sample = x_sample.unsqueeze(0).to(device)
+            y_sample = y_sample.numpy()
+            pred_sample = model(x_sample, chain_edges, tree_edge_index,
+                                node_levels, n_total)
+            pred_sample = pred_sample[0].cpu().numpy()
+
+        # Plot position corrections (dx, dy) for each bead
+        beads = np.arange(dataset.n_beads)
+        ax2.plot(beads, y_sample[:, 0], "b-o", markersize=3, label="Target dx")
+        ax2.plot(beads, pred_sample[:, 0], "r--x", markersize=3, label="Predicted dx")
+        ax2.plot(beads, y_sample[:, 1], "g-o", markersize=3, label="Target dy")
+        ax2.plot(beads, pred_sample[:, 1], "m--x", markersize=3, label="Predicted dy")
+        ax2.set_xlabel("Bead index")
+        ax2.set_ylabel("Position correction (m)")
+        ax2.set_title("Sample Prediction vs Target")
+        ax2.legend(fontsize=8)
+        ax2.grid(True, alpha=0.3)
+
+        plt.tight_layout()
+        plot_path = os.path.join(args.output_dir, "training_results.png")
+        plt.savefig(plot_path, dpi=150)
+        print(f"\nPlot saved to {plot_path}")
+        plt.close(fig)
+
+    except Exception as e:
+        print(f"Plotting skipped: {e}")
+
+    print(f"\nBest val loss: {best_val_loss:.2e}")
+    print(f"Models saved to {args.output_dir}/")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Train U-Net GNN on bead chain data")
+    parser.add_argument("--data_dir", type=str, default="data")
+    parser.add_argument("--output_dir", type=str, default="outputs")
+    parser.add_argument("--hidden_dim", type=int, default=64)
+    parser.add_argument("--batch_size", type=int, default=32)
+    parser.add_argument("--epochs", type=int, default=200)
+    parser.add_argument("--lr", type=float, default=1e-3)
+    parser.add_argument("--log_every", type=int, default=10)
+    args = parser.parse_args()
+
+    train(args)

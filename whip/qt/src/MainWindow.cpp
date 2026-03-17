@@ -110,11 +110,6 @@ MainWindow::MainWindow(QWidget *parent)
     m_spinDt->setSuffix(" s");
     form->addRow("dt:", m_spinDt);
 
-    m_spinSubSteps = new QSpinBox;
-    m_spinSubSteps->setRange(1, 1000);
-    m_spinSubSteps->setValue(50);
-    form->addRow("Sub-steps/frame:", m_spinSubSteps);
-
     panelLayout->addWidget(paramGroup);
 
     // -- Recording group --
@@ -186,7 +181,6 @@ void MainWindow::setParamsEnabled(bool on)
     m_chkConstraints->setEnabled(on);
     m_spinGravity->setEnabled(on);
     m_spinDt->setEnabled(on);
-    m_spinSubSteps->setEnabled(on);
     m_spinRecordInterval->setEnabled(on);
 }
 
@@ -245,10 +239,11 @@ void MainWindow::onStartReset()
         statusBar()->showMessage("Reset — press Start");
         m_lblFrames->setText("--");
     } else {
-        // Normal start — no recording, full speed
+        // Normal start — no recording, real-time
         buildAndStart(false);
         m_btnRecord->setEnabled(false);
         m_lblFrames->setText("--");
+        m_wallClock.start();
         m_timer->start(16);
         statusBar()->showMessage("Running (real-time)");
     }
@@ -331,16 +326,22 @@ void MainWindow::tick()
 {
     double dt = m_spinDt->value();
     double gravity = m_spinGravity->value();
-    int subSteps = m_spinSubSteps->value();
 
-    for (int i = 0; i < subSteps; ++i) {
+    // Compute how far wall-clock time has advanced, then step sim to match
+    double wallSeconds = m_wallClock.elapsed() / 1000.0;
+    int maxStepsPerFrame = 5000; // safety cap to avoid freezing
+
+    int steps = 0;
+    while (m_simTime < wallSeconds && steps < maxStepsPerFrame) {
         m_sim->step(dt, gravity);
         m_simTime += dt;
+        ++steps;
     }
 
     m_view->setSimTime(m_simTime);
     statusBar()->showMessage(
-        QString("t = %1 s").arg(m_simTime, 0, 'f', 3));
+        QString("t = %1 s  (%2 steps/frame)")
+        .arg(m_simTime, 0, 'f', 3).arg(steps));
 }
 
 void MainWindow::exportRecording()

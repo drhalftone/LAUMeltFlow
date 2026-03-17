@@ -2,6 +2,7 @@
 
 #include <QMainWindow>
 #include <QTimer>
+#include <QElapsedTimer>
 
 class QDoubleSpinBox;
 class QSpinBox;
@@ -37,6 +38,7 @@ private:
     bool m_running = false;
     double m_simTime = 0.0;
     int m_stepCount = 0;
+    QElapsedTimer m_wallClock;
 
     // Parameter widgets
     QSpinBox       *m_spinBeads;
@@ -49,7 +51,6 @@ private:
     QCheckBox      *m_chkConstraints;
     QDoubleSpinBox *m_spinGravity;
     QDoubleSpinBox *m_spinDt;
-    QSpinBox       *m_spinSubSteps;
     QSpinBox       *m_spinRecordInterval;
 
     QPushButton *m_btnStartReset;

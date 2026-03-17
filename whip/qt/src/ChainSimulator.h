@@ -20,6 +20,32 @@ struct FrameRecord {
     QVector<QVector2D> velocities;
 };
 
+/// Per-bead training sample: state before step + neighbor info → state after step.
+/// This captures exactly what each bead computes during one timestep.
+struct BeadSample {
+    int beadId;
+    // Input: bead state before step
+    QVector2D posBefore;
+    QVector2D velBefore;
+    double mass;
+    bool fixed;
+    // Input: left neighbor state (or zero if no left neighbor)
+    QVector2D leftPos;
+    QVector2D leftVel;
+    double leftMass;
+    double leftRestLength;   // 0 if no left neighbor
+    bool hasLeft;
+    // Input: right neighbor state (or zero if no right neighbor)
+    QVector2D rightPos;
+    QVector2D rightVel;
+    double rightMass;
+    double rightRestLength;  // 0 if no right neighbor
+    bool hasRight;
+    // Target: bead state after step
+    QVector2D posAfter;
+    QVector2D velAfter;
+};
+
 /// Coordinator that owns all beads and rods, wires up signals/slots,
 /// and drives the two-phase timestep:
 ///   Phase 1: broadcast neighbor states -> beads accumulate forces
@@ -53,7 +79,11 @@ public:
     bool isRecording() const { return m_recording; }
     void recordFrame(double time);
     const QVector<FrameRecord> &recording() const { return m_frames; }
-    void clearRecording() { m_frames.clear(); }
+    void clearRecording() { m_frames.clear(); m_beadSamples.clear(); }
+
+    // GNN training data: per-bead samples
+    void setRecordBeadSamples(bool on) { m_recordBeadSamples = on; }
+    const QVector<BeadSample> &beadSamples() const { return m_beadSamples; }
 
     // Accessors for the renderer
     int beadCount() const { return m_beads.size(); }
@@ -75,4 +105,7 @@ private:
 
     bool m_recording = false;
     QVector<FrameRecord> m_frames;
+
+    bool m_recordBeadSamples = false;
+    QVector<BeadSample> m_beadSamples;
 };

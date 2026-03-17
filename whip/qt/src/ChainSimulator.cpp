@@ -61,6 +61,19 @@ void ChainSimulator::buildChain(int nBeads, double totalLength,
 
 void ChainSimulator::step(double dt, double gravity)
 {
+    const int n = m_beads.size();
+
+    // -- Capture pre-step state for training data --
+    QVector<QVector2D> prePos, preVel;
+    if (m_recordBeadSamples) {
+        prePos.resize(n);
+        preVel.resize(n);
+        for (int i = 0; i < n; ++i) {
+            prePos[i] = m_beads[i]->pos();
+            preVel[i] = m_beads[i]->vel();
+        }
+    }
+
     // -- Phase 1: Force accumulation (message passing) --
 
     for (Bead *b : m_beads)
@@ -86,6 +99,53 @@ void ChainSimulator::step(double dt, double gravity)
 
     if (m_useConstraints)
         projectConstraints();
+
+    // -- Capture post-step state and build training samples --
+    if (m_recordBeadSamples) {
+        for (int i = 0; i < n; ++i) {
+            BeadSample s;
+            s.beadId = i;
+            s.posBefore = prePos[i];
+            s.velBefore = preVel[i];
+            s.mass = m_beads[i]->mass();
+            s.fixed = m_beads[i]->isFixed();
+
+            // Left neighbor (i-1)
+            if (i > 0) {
+                s.hasLeft = true;
+                s.leftPos = prePos[i - 1];
+                s.leftVel = preVel[i - 1];
+                s.leftMass = m_beads[i - 1]->mass();
+                s.leftRestLength = m_rods[i - 1].restLength;
+            } else {
+                s.hasLeft = false;
+                s.leftPos = prePos[i];  // ghost: same position
+                s.leftVel = QVector2D(0, 0);
+                s.leftMass = 0.0;
+                s.leftRestLength = 0.0;
+            }
+
+            // Right neighbor (i+1)
+            if (i < n - 1) {
+                s.hasRight = true;
+                s.rightPos = prePos[i + 1];
+                s.rightVel = preVel[i + 1];
+                s.rightMass = m_beads[i + 1]->mass();
+                s.rightRestLength = m_rods[i].restLength;
+            } else {
+                s.hasRight = false;
+                s.rightPos = prePos[i];  // ghost: same position
+                s.rightVel = QVector2D(0, 0);
+                s.rightMass = 0.0;
+                s.rightRestLength = 0.0;
+            }
+
+            s.posAfter = m_beads[i]->pos();
+            s.velAfter = m_beads[i]->vel();
+
+            m_beadSamples.append(s);
+        }
+    }
 
     emit stepped();
 }

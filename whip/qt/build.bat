@@ -1,6 +1,6 @@
 @echo off
 call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
-cd /d C:\Users\drhal\Developer\LAUMeltFlow\whip\qt
+cd /d "%~dp0"
 if not exist build mkdir build
 cd build
 C:\Qt\6.9.3\msvc2022_64\bin\qmake.exe ..\BeadChain.pro -spec win32-msvc

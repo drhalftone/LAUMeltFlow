@@ -18,16 +18,14 @@ import argparse
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
-import matplotlib.animation as animation
 
-# Add parent dir so we can import simulation
+# Import from local model first, then add parent for simulation
+from model import BeadChainUNet, build_chain_adj, build_tree_children
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-
 from simulation import (
     create_chain, compute_forces, project_constraints, compute_energy,
-    build_tree_edges,
 )
-from model import BeadChainUNet
 
 
 def load_model(model_path, device):
@@ -35,7 +33,7 @@ def load_model(model_path, device):
     ckpt = torch.load(model_path, map_location=device, weights_only=False)
     args = ckpt["args"]
     model = BeadChainUNet(
-        input_dim=7,
+        state_dim=7,
         output_dim=4,
         hidden_dim=args["hidden_dim"],
         n_beads=16,
@@ -47,37 +45,9 @@ def load_model(model_path, device):
     return model
 
 
-def build_graph_tensors(n_beads, device):
-    """Build graph connectivity tensors for the model."""
-    tree = build_tree_edges(n_beads)
-    n_total = tree["n_total_nodes"]
-
-    # Chain edges (bidirectional)
-    edges = np.array([[i, i + 1] for i in range(n_beads - 1)])
-    fwd = edges
-    bwd = edges[:, ::-1]
-    chain_edges = np.concatenate([fwd, bwd], axis=0).T  # (2, 30)
-
-    # Tree edges
-    tree_src = tree["tree_edges"][:, 0]
-    tree_dst = tree["tree_edges"][:, 1]
-    tree_edge_index = np.stack([tree_src, tree_dst])  # (2, 60)
-
-    return {
-        "chain_edges": torch.from_numpy(chain_edges).long().to(device),
-        "tree_edge_index": torch.from_numpy(tree_edge_index).long().to(device),
-        "node_levels": torch.from_numpy(tree["node_levels"]).long().to(device),
-        "n_total": n_total,
-        "n_interior": tree["n_total_nodes"] - n_beads,
-    }
-
-
-def state_to_input_tensor(state, graph, device):
-    """Convert simulation state to model input tensor (1, 31, 7)."""
+def state_to_bead_tensor(state, device):
+    """Convert simulation state to bead input tensor (1, 16, 7)."""
     n_beads = len(state.mass)
-    n_interior = graph["n_interior"]
-
-    # Bead features: [pos_x, pos_y, vel_x, vel_y, mass, type, level]
     bead_feat = np.column_stack([
         state.pos,                                # (16, 2)
         state.vel,                                # (16, 2)
@@ -85,20 +55,11 @@ def state_to_input_tensor(state, graph, device):
         state.fixed.astype(np.float32),           # (16,)
         np.zeros(n_beads),                        # (16,) level=0
     ])  # (16, 7)
-
-    # Interior node features (zeros + level)
-    interior_feat = np.zeros((n_interior, 7))
-    interior_feat[:, 5] = 2  # node_type = interior
-    levels_np = graph["node_levels"].cpu().numpy()
-    interior_feat[:, 6] = levels_np[n_beads:]
-
-    full = np.vstack([bead_feat, interior_feat])  # (31, 7)
-    return torch.from_numpy(full).float().unsqueeze(0).to(device)  # (1, 31, 7)
+    return torch.from_numpy(bead_feat).float().unsqueeze(0).to(device)
 
 
-def step_with_gnn(state, dt, gravity, model, graph, device):
+def step_with_gnn(state, dt, gravity, model, chain_adj, tree_children, device):
     """One timestep: symplectic Euler + GNN correction (no SHAKE)."""
-    # Phase 1-2: normal integration
     forces = compute_forces(state, gravity)
     acc = forces / state.mass[:, None]
     acc[state.fixed] = 0.0
@@ -106,18 +67,11 @@ def step_with_gnn(state, dt, gravity, model, graph, device):
     state.vel[state.fixed] = 0.0
     state.pos += dt * state.vel
 
-    # Phase 3: GNN correction instead of SHAKE
-    x = state_to_input_tensor(state, graph, device)
+    # GNN correction instead of SHAKE
+    x = state_to_bead_tensor(state, device)
     with torch.no_grad():
-        correction = model(
-            x,
-            graph["chain_edges"],
-            graph["tree_edge_index"],
-            graph["node_levels"],
-            graph["n_total"],
-        )[0].cpu().numpy()  # (16, 4)
+        correction = model(x, chain_adj, tree_children)[0].cpu().numpy()  # (16, 4)
 
-    # Apply corrections
     state.pos += correction[:, :2]
     state.vel += correction[:, 2:]
 
@@ -156,10 +110,14 @@ def compute_rod_errors(state):
 
 def run_evaluation(args):
     device = torch.device("cpu")
+    n_beads = 16
 
     # Load model
     model = load_model(args.model_path, device)
-    graph = build_graph_tensors(16, device)
+
+    # Build graph structure for the new model interface
+    chain_adj = torch.from_numpy(build_chain_adj(n_beads)).long().to(device)
+    tree_children = build_tree_children(n_beads)
 
     # Simulation parameters (match training data)
     params = dict(
@@ -211,7 +169,7 @@ def run_evaluation(args):
         state_gt.vel[0] = 0.0
 
         # GNN surrogate
-        step_with_gnn(state_gnn, dt, gravity, model, graph, device)
+        step_with_gnn(state_gnn, dt, gravity, model, chain_adj, tree_children, device)
         state_gnn.pos[0] = anchor
         state_gnn.vel[0] = 0.0
 

@@ -27,6 +27,7 @@ private:
     void stopSim();
     void setParamsEnabled(bool on);
     void exportRecording();
+    void exportBeadSamples(const QString &path);
 
     ChainSimulator *m_sim;
     ChainWidget *m_view;

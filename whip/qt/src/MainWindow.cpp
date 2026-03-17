@@ -262,6 +262,7 @@ void MainWindow::onRecord()
     // Rebuild chain and run the entire simulation off-screen,
     // recording every N steps, then export.
     buildAndStart(true);
+    m_sim->setRecordBeadSamples(true);
     m_btnRecord->setEnabled(false);
     m_btnStartReset->setEnabled(false);
 
@@ -297,12 +298,23 @@ void MainWindow::onRecord()
     }
 
     int nFrames = m_sim->recording().size();
-    m_lblFrames->setText(QString("%1 frames").arg(nFrames));
+    int nSamples = m_sim->beadSamples().size();
+    m_lblFrames->setText(QString("%1 frames, %2 bead samples")
+                         .arg(nFrames).arg(nSamples));
     statusBar()->showMessage(
-        QString("Done — %1 frames recorded. Saving...").arg(nFrames));
+        QString("Done — %1 frames, %2 bead samples. Saving...").arg(nFrames).arg(nSamples));
 
     // Auto-export
     exportRecording();
+
+    // Also export bead training samples
+    QString beadPath = QFileDialog::getSaveFileName(
+        this, "Export GNN Training Data", "bead_training.csv",
+        "CSV files (*.csv)");
+    if (!beadPath.isEmpty())
+        exportBeadSamples(beadPath);
+
+    m_sim->setRecordBeadSamples(false);
 
     // Reset state
     m_running = false;
@@ -394,4 +406,59 @@ void MainWindow::exportRecording()
 
     QMessageBox::information(this, "Export Complete",
         QString("Exported %1 frames to:\n%2").arg(frames.size()).arg(path));
+}
+
+void MainWindow::exportBeadSamples(const QString &path)
+{
+    const auto &samples = m_sim->beadSamples();
+    if (samples.isEmpty())
+        return;
+
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QMessageBox::warning(this, "Export Error",
+                             "Could not open file for writing.");
+        return;
+    }
+
+    QTextStream out(&file);
+
+    // Header: per-bead input features + target
+    out << "bead_id,"
+        << "pos_x,pos_y,vel_x,vel_y,mass,fixed,"
+        << "left_pos_x,left_pos_y,left_vel_x,left_vel_y,left_mass,left_rest_len,has_left,"
+        << "right_pos_x,right_pos_y,right_vel_x,right_vel_y,right_mass,right_rest_len,has_right,"
+        << "target_pos_x,target_pos_y,target_vel_x,target_vel_y\n";
+
+    for (const BeadSample &s : samples) {
+        out << s.beadId << ","
+            << QString::number(s.posBefore.x(), 'g', 10) << ","
+            << QString::number(s.posBefore.y(), 'g', 10) << ","
+            << QString::number(s.velBefore.x(), 'g', 10) << ","
+            << QString::number(s.velBefore.y(), 'g', 10) << ","
+            << QString::number(s.mass, 'g', 10) << ","
+            << (s.fixed ? 1 : 0) << ","
+            << QString::number(s.leftPos.x(), 'g', 10) << ","
+            << QString::number(s.leftPos.y(), 'g', 10) << ","
+            << QString::number(s.leftVel.x(), 'g', 10) << ","
+            << QString::number(s.leftVel.y(), 'g', 10) << ","
+            << QString::number(s.leftMass, 'g', 10) << ","
+            << QString::number(s.leftRestLength, 'g', 10) << ","
+            << (s.hasLeft ? 1 : 0) << ","
+            << QString::number(s.rightPos.x(), 'g', 10) << ","
+            << QString::number(s.rightPos.y(), 'g', 10) << ","
+            << QString::number(s.rightVel.x(), 'g', 10) << ","
+            << QString::number(s.rightVel.y(), 'g', 10) << ","
+            << QString::number(s.rightMass, 'g', 10) << ","
+            << QString::number(s.rightRestLength, 'g', 10) << ","
+            << (s.hasRight ? 1 : 0) << ","
+            << QString::number(s.posAfter.x(), 'g', 10) << ","
+            << QString::number(s.posAfter.y(), 'g', 10) << ","
+            << QString::number(s.velAfter.x(), 'g', 10) << ","
+            << QString::number(s.velAfter.y(), 'g', 10) << "\n";
+    }
+    file.close();
+
+    QMessageBox::information(this, "GNN Data Export",
+        QString("Exported %1 bead samples to:\n%2").arg(samples.size()).arg(path));
 }

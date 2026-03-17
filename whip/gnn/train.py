@@ -65,11 +65,12 @@ def train(args):
     val_losses = []
     best_val_loss = float("inf")
 
+    n_batches = len(train_loader)
     for epoch in range(1, args.epochs + 1):
         # --- Train ---
         model.train()
         epoch_loss = 0.0
-        for x_batch, y_batch in train_loader:
+        for batch_idx, (x_batch, y_batch) in enumerate(train_loader, 1):
             # x_batch is (B, 31, 7) but we only need beads (B, 16, 7)
             bead_states = x_batch[:, :n_beads, :].to(device)
             y_batch = y_batch.to(device)
@@ -82,6 +83,11 @@ def train(args):
             optimizer.step()
 
             epoch_loss += loss.item() * bead_states.shape[0]
+
+            if batch_idx % max(1, n_batches // 5) == 0:
+                print(f"\r  Epoch {epoch}/{args.epochs}  "
+                      f"batch {batch_idx}/{n_batches}  "
+                      f"loss={loss.item():.2e}", end="", flush=True)
 
         epoch_loss /= n_train
         train_losses.append(epoch_loss)
@@ -104,8 +110,9 @@ def train(args):
         # --- Logging ---
         lr = optimizer.param_groups[0]["lr"]
         if epoch % args.log_every == 0 or epoch == 1:
-            print(f"Epoch {epoch:4d}/{args.epochs}  "
-                  f"train={epoch_loss:.2e}  val={val_loss:.2e}  lr={lr:.1e}")
+            print(f"\rEpoch {epoch:4d}/{args.epochs}  "
+                  f"train={epoch_loss:.2e}  val={val_loss:.2e}  lr={lr:.1e}"
+                  f"                    ")
 
         # --- Save best ---
         if val_loss < best_val_loss:
@@ -182,11 +189,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train U-Net GNN on bead chain data")
     parser.add_argument("--data_dir", type=str, default="../data")
     parser.add_argument("--output_dir", type=str, default="outputs")
-    parser.add_argument("--hidden_dim", type=int, default=32)
+    parser.add_argument("--hidden_dim", type=int, default=64)
     parser.add_argument("--batch_size", type=int, default=32)
-    parser.add_argument("--epochs", type=int, default=200)
+    parser.add_argument("--epochs", type=int, default=500)
     parser.add_argument("--lr", type=float, default=1e-3)
-    parser.add_argument("--log_every", type=int, default=10)
+    parser.add_argument("--log_every", type=int, default=1)
     args = parser.parse_args()
 
     train(args)

@@ -97,6 +97,36 @@ Train a GNN to replicate the per-bead computation directly:
 - No SHAKE needed — stiff springs keep rods within ~0.4% of rest length
 - Simplest approach: single-step supervised learning, no autograd or constraint projection
 
+## Training Data: Volume Sampling
+
+Simulation trajectories only trace thin paths through the full input state
+space. A chain swinging under gravity visits a narrow manifold, but the GNN
+needs to handle any state it might encounter — including states caused by its
+own prediction errors during rollout. Training only on trajectory data leaves
+gaps that cause instability.
+
+### Approach
+
+1. **Discover bounds:** Run simulations (via the Qt app's Record button) to
+   find the range of each input parameter: position extents, velocity extents,
+   mass values, rest lengths, etc.
+
+2. **Sample the full volume:** Generate random or grid-sampled combinations of
+   `(pos, vel, neighbor_pos, neighbor_vel, mass, rest_length)` that fill the
+   entire reachable parameter space — not just the states that naturally occur
+   during simulation.
+
+3. **Compute exact outputs:** For each sampled input, run the bead physics
+   (`onNeighborState` + `integrate`) to get the correct output. This is cheap —
+   one force calculation + one Euler step per sample.
+
+4. **Train on dense coverage:** The GNN sees the full volume of possible states,
+   so it generalizes to unseen states and remains stable during rollout.
+
+This is more like training a lookup table over the full domain than learning
+from a few trajectory paths through it. The bead computation is simple enough
+that generating millions of volume-filling samples is fast.
+
 ## Binary-Tree Architecture (U-Net GNN)
 
 ### The problem with flat GNNs

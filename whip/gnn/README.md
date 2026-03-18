@@ -57,14 +57,35 @@ This captures trajectory data to discover the reachable state space bounds.
 python generate_volume_data.py --n_samples 1000000
 ```
 
-Uniformly samples the full reachable state space (not just trajectory paths),
-computes exact per-bead physics for each sample, and saves to `volume_data.npz`.
+Uniformly samples the reachable state space, computes exact per-bead physics
+for each sample, and saves to `volume_data.npz`.
 
-Volume bounds (from simulation analysis):
-- pos_x: [-2.0, 2.0], pos_y: [-2.0, 0.0]
-- vel_x: [-13.1, 13.1], vel_y: [-7.8, 7.8]
+Neighbor positions are sampled in **polar coordinates** (r, theta) around
+the bead, with r constrained near the rest length (+/-5%). This ensures
+physically realistic neighbor distances — in the actual simulation, springs
+stretch less than 1% from rest length.
 
-#### 3. Analyze bounds (optional)
+Volume bounds (from Qt simulation analysis):
+- Self velocity: vel_x [-13.1, 13.1], vel_y [-7.8, 7.8]
+- Neighbor distance: r = rest_length * [0.95, 1.05], theta = [0, 2pi]
+- Neighbor relative velocity: dvx [-26.2, 26.2], dvy [-15.6, 15.6]
+
+#### 3. Train
+
+```bash
+python bead_train.py --epochs 200 --hidden_dim 64
+```
+
+#### 4. Visualize
+
+```bash
+python bead_visualize.py --model_path outputs/bead_best.pt
+```
+
+Shows ground truth (stiff springs) vs GNN side by side with trajectory
+error plot.
+
+#### 5. Analyze bounds (optional)
 
 ```bash
 python analyze_bounds.py ../qt/bead_training.csv

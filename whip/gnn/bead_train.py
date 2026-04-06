@@ -6,6 +6,7 @@ Usage:
 """
 
 import os
+import time
 import argparse
 import numpy as np
 import torch
@@ -17,6 +18,8 @@ from bead_model import BeadGNN
 def train(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}")
+    if device.type == "cuda":
+        print(f"  GPU: {torch.cuda.get_device_name(0)}")
 
     # --- Load data ---
     print(f"Loading {args.data}...")
@@ -44,10 +47,16 @@ def train(args):
     )
     print(f"  Train: {n_train:,}, Val: {n_val:,}")
 
+    # Larger batch size for GPU, more workers for data loading
+    num_workers = 2 if device.type == "cuda" else 0
     train_loader = DataLoader(train_set, batch_size=args.batch_size,
-                              shuffle=True, num_workers=0, pin_memory=True)
-    val_loader = DataLoader(val_set, batch_size=args.batch_size,
-                            shuffle=False, num_workers=0, pin_memory=True)
+                              shuffle=True, num_workers=num_workers,
+                              pin_memory=(device.type == "cuda"),
+                              persistent_workers=(num_workers > 0))
+    val_loader = DataLoader(val_set, batch_size=args.batch_size * 2,
+                            shuffle=False, num_workers=num_workers,
+                            pin_memory=(device.type == "cuda"),
+                            persistent_workers=(num_workers > 0))
 
     # --- Model ---
     model = BeadGNN(
@@ -57,6 +66,15 @@ def train(args):
         n_layers=args.n_layers,
     ).to(device)
 
+    # Resume from checkpoint if available
+    resume_path = os.path.join(args.output_dir, "bead_best.pt")
+    if args.resume and os.path.exists(resume_path):
+        ckpt = torch.load(resume_path, map_location=device, weights_only=False)
+        model.load_state_dict(ckpt["model_state_dict"])
+        print(f"  Resumed from {resume_path} (epoch {ckpt['epoch']}, val_loss={ckpt['val_loss']:.2e})")
+    elif args.resume:
+        print(f"  --resume set but no checkpoint found at {resume_path}, starting fresh")
+
     n_params = sum(p.numel() for p in model.parameters())
     print(f"  Model: {args.n_layers} ResMLPBlocks, hidden_dim={args.hidden_dim}, {n_params:,} params")
 
@@ -65,27 +83,35 @@ def train(args):
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
     criterion = nn.MSELoss()
 
+    # Mixed precision for GPU
+    use_amp = device.type == "cuda"
+    scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
+
     os.makedirs(args.output_dir, exist_ok=True)
 
     train_losses = []
     val_losses = []
     best_val_loss = float("inf")
+    t_start = time.time()
 
     for epoch in range(1, args.epochs + 1):
         # --- Train ---
         model.train()
         epoch_loss = 0.0
         for x_batch, y_batch in train_loader:
-            x_batch = x_batch.to(device)
-            y_batch = y_batch.to(device)
+            x_batch = x_batch.to(device, non_blocking=True)
+            y_batch = y_batch.to(device, non_blocking=True)
 
-            pred = model(x_batch)
-            loss = criterion(pred, y_batch)
+            with torch.amp.autocast("cuda", enabled=use_amp):
+                pred = model(x_batch)
+                loss = criterion(pred, y_batch)
 
-            optimizer.zero_grad()
-            loss.backward()
+            optimizer.zero_grad(set_to_none=True)
+            scaler.scale(loss).backward()
+            scaler.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-            optimizer.step()
+            scaler.step(optimizer)
+            scaler.update()
 
             epoch_loss += loss.item() * x_batch.shape[0]
 
@@ -97,10 +123,11 @@ def train(args):
         val_loss = 0.0
         with torch.no_grad():
             for x_batch, y_batch in val_loader:
-                x_batch = x_batch.to(device)
-                y_batch = y_batch.to(device)
-                pred = model(x_batch)
-                val_loss += criterion(pred, y_batch).item() * x_batch.shape[0]
+                x_batch = x_batch.to(device, non_blocking=True)
+                y_batch = y_batch.to(device, non_blocking=True)
+                with torch.amp.autocast("cuda", enabled=use_amp):
+                    pred = model(x_batch)
+                    val_loss += criterion(pred, y_batch).item() * x_batch.shape[0]
 
         val_loss /= n_val
         val_losses.append(val_loss)
@@ -109,15 +136,22 @@ def train(args):
         # --- Logging ---
         lr = optimizer.param_groups[0]["lr"]
         if epoch % args.log_every == 0 or epoch == 1:
+            elapsed = time.time() - t_start
+            eta = elapsed / epoch * (args.epochs - epoch)
             print(f"Epoch {epoch:4d}/{args.epochs}  "
-                  f"train={epoch_loss:.4e}  val={val_loss:.4e}  lr={lr:.1e}")
+                  f"train={epoch_loss:.4e}  val={val_loss:.4e}  lr={lr:.1e}  "
+                  f"[{elapsed:.0f}s elapsed, ~{eta:.0f}s remaining]")
 
         # --- Save best ---
         if val_loss < best_val_loss:
             best_val_loss = val_loss
+            # Save uncompiled model state
+            state_dict = model.state_dict()
+            if hasattr(model, "_orig_mod"):
+                state_dict = model._orig_mod.state_dict()
             torch.save({
                 "epoch": epoch,
-                "model_state_dict": model.state_dict(),
+                "model_state_dict": state_dict,
                 "val_loss": val_loss,
                 "args": vars(args),
                 "x_mean": x_mean,
@@ -127,9 +161,12 @@ def train(args):
             }, os.path.join(args.output_dir, "bead_best.pt"))
 
     # --- Save final ---
+    state_dict = model.state_dict()
+    if hasattr(model, "_orig_mod"):
+        state_dict = model._orig_mod.state_dict()
     torch.save({
         "epoch": args.epochs,
-        "model_state_dict": model.state_dict(),
+        "model_state_dict": state_dict,
         "val_loss": val_losses[-1],
         "args": vars(args),
         "x_mean": x_mean,
@@ -143,6 +180,9 @@ def train(args):
         train=np.array(train_losses),
         val=np.array(val_losses),
     )
+
+    total_time = time.time() - t_start
+    print(f"\nTraining complete in {total_time:.0f}s ({total_time/args.epochs:.1f}s/epoch)")
 
     # --- Plot ---
     try:
@@ -166,17 +206,15 @@ def train(args):
         ax = axes[1]
         model.eval()
         with torch.no_grad():
-            # Grab a batch from val set
             x_sample, y_sample = next(iter(val_loader))
             x_sample = x_sample[:200].to(device)
             y_sample = y_sample[:200]
-            pred_sample = model(x_sample).cpu()
+            with torch.amp.autocast("cuda", enabled=use_amp):
+                pred_sample = model(x_sample).float().cpu()
 
-        # Denormalize
         y_true = y_sample * y_std + y_mean
         y_pred = pred_sample * y_std + y_mean
 
-        # Plot d_vel_x predicted vs true (largest dynamic range)
         ax.scatter(y_true[:, 2].numpy(), y_pred[:, 2].numpy(),
                    s=2, alpha=0.5, c="tab:blue")
         lims = [y_true[:, 2].min().item(), y_true[:, 2].max().item()]
@@ -191,7 +229,7 @@ def train(args):
         plt.tight_layout()
         plot_path = os.path.join(args.output_dir, "bead_training.png")
         plt.savefig(plot_path, dpi=150)
-        print(f"\nPlot saved to {plot_path}")
+        print(f"Plot saved to {plot_path}")
         plt.close(fig)
     except Exception as e:
         print(f"Plotting skipped: {e}")
@@ -206,9 +244,11 @@ if __name__ == "__main__":
     parser.add_argument("--output_dir", type=str, default="outputs")
     parser.add_argument("--hidden_dim", type=int, default=64)
     parser.add_argument("--n_layers", type=int, default=3)
-    parser.add_argument("--batch_size", type=int, default=512)
+    parser.add_argument("--batch_size", type=int, default=4096)
     parser.add_argument("--epochs", type=int, default=200)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--log_every", type=int, default=5)
+    parser.add_argument("--resume", action="store_true",
+                        help="Resume from best checkpoint in output_dir")
     args = parser.parse_args()
     train(args)

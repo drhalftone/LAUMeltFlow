@@ -1,9 +1,9 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.25 (MiKTeX 24.1) (preloaded format=pdflatex 2025.12.11)  17 DEC 2025 18:53
+This is pdfTeX, Version 3.141592653-2.6-1.40.25 (MiKTeX 24.1) (preloaded format=pdflatex 2025.12.11)  15 DEC 2025 18:44
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
-**./gnn_report.tex
-(gnn_report.tex
+**./electrostatic_report.tex
+(electrostatic_report.tex
 LaTeX2e <2023-11-01> patch level 1
 L3 programming layer <2024-01-04>
 (C:\Users\dllau\AppData\Local\Programs\MiKTeX\tex/latex/base\article.cls
@@ -172,12 +172,6 @@ Package: booktabs 2020/01/12 v1.61803398 Publication quality tables
 \@thisruleclass=\count278
 \@lastruleclass=\count279
 \@thisrulewidth=\dimen172
-) (C:\Users\dllau\AppData\Local\Programs\MiKTeX\tex/latex/multirow\multirow.sty
-Package: multirow 2024/11/12 v2.9 Span multiple rows of a table
-\multirow@colwidth=\skip53
-\multirow@cntb=\count280
-\multirow@dima=\skip54
-\bigstrutjot=\dimen173
 ) (C:\Users\dllau\AppData\Local\Programs\MiKTeX\tex/latex/hyperref\hyperref.sty
 Package: hyperref 2023-11-26 v7.01g Hypertext links for LaTeX
 
@@ -230,15 +224,15 @@ Package: gettitlestring 2019/12/15 v1.6 Cleanup title references (HO)
 (C:\Users\dllau\AppData\Local\Programs\MiKTeX\tex/latex/kvoptions\kvoptions.sty
 Package: kvoptions 2022-06-15 v3.15 Key value format for package options (HO)
 ))
-\c@section@level=\count281
+\c@section@level=\count280
 )
 (C:\Users\dllau\AppData\Local\Programs\MiKTeX\tex/latex/etoolbox\etoolbox.sty
 Package: etoolbox 2020/10/05 v2.5k e-TeX tools for LaTeX (JAW)
-\etb@tempcnta=\count282
+\etb@tempcnta=\count281
 )
-\@linkdim=\dimen174
-\Hy@linkcounter=\count283
-\Hy@pagecounter=\count284
+\@linkdim=\dimen173
+\Hy@linkcounter=\count282
+\Hy@pagecounter=\count283
 
 (C:\Users\dllau\AppData\Local\Programs\MiKTeX\tex/latex/hyperref\pd1enc.def
 File: pd1enc.def 2023-11-26 v7.01g Hyperref: PDFDocEncoding definition (HO)
@@ -248,7 +242,7 @@ Now handling font encoding PD1 ...
 (C:\Users\dllau\AppData\Local\Programs\MiKTeX\tex/generic/intcalc\intcalc.sty
 Package: intcalc 2019/12/15 v1.3 Expandable calculations with integers (HO)
 )
-\Hy@SavedSpaceFactor=\count285
+\Hy@SavedSpaceFactor=\count284
 
 (C:\Users\dllau\AppData\Local\Programs\MiKTeX\tex/latex/hyperref\puenc.def
 File: puenc.def 2023-11-26 v7.01g Hyperref: PDF Unicode definition (HO)
@@ -262,14 +256,14 @@ Package hyperref Info: Plain pages OFF on input line 4196.
 Package hyperref Info: Backreferencing OFF on input line 4201.
 Package hyperref Info: Implicit mode ON; LaTeX internals redefined.
 Package hyperref Info: Bookmarks ON on input line 4448.
-\c@Hy@tempcnt=\count286
+\c@Hy@tempcnt=\count285
 
 (C:\Users\dllau\AppData\Local\Programs\MiKTeX\tex/latex/url\url.sty
 \Urlmuskip=\muskip17
 Package: url 2013/09/16  ver 3.4  Verb mode for urls, etc.
 )
 LaTeX Info: Redefining \url on input line 4786.
-\XeTeXLinkMargin=\dimen175
+\XeTeXLinkMargin=\dimen174
 
 (C:\Users\dllau\AppData\Local\Programs\MiKTeX\tex/generic/bitset\bitset.sty
 Package: bitset 2019/12/09 v1.3 Handle bit-vector datatype (HO)
@@ -279,9 +273,9 @@ Package: bitset 2019/12/09 v1.3 Handle bit-vector datatype (HO)
 Package: bigintcalc 2019/12/15 v1.5 Expandable calculations on big integers (HO
 )
 ))
-\Fld@menulength=\count287
-\Field@Width=\dimen176
-\Fld@charsize=\dimen177
+\Fld@menulength=\count286
+\Field@Width=\dimen175
+\Fld@charsize=\dimen176
 Package hyperref Info: Hyper figures OFF on input line 6065.
 Package hyperref Info: Link nesting OFF on input line 6070.
 Package hyperref Info: Hyper index ON on input line 6073.
@@ -294,9 +288,9 @@ Package hyperref Info: PDF/A mode OFF on input line 6095.
 Package: atbegshi-ltx 2021/01/10 v1.0c Emulation of the original atbegshi
 package with kernel methods
 )
-\Hy@abspage=\count288
-\c@Item=\count289
-\c@Hfootnote=\count290
+\Hy@abspage=\count287
+\c@Item=\count288
+\c@Hfootnote=\count289
 )
 Package hyperref Info: Driver (autodetected): hpdftex.
 (C:\Users\dllau\AppData\Local\Programs\MiKTeX\tex/latex/hyperref\hpdftex.def
@@ -307,8 +301,8 @@ Package: atveryend-ltx 2020/08/19 v1.0a Emulation of the original atveryend pac
 kage
 with kernel methods
 )
-\Fld@listcount=\count291
-\c@bookmark@seq@number=\count292
+\Fld@listcount=\count290
+\c@bookmark@seq@number=\count291
 
 (C:\Users\dllau\AppData\Local\Programs\MiKTeX\tex/latex/rerunfilecheck\rerunfil
 echeck.sty
@@ -321,11 +315,11 @@ Package: uniquecounter 2019/12/15 v1.4 Provide unlimited unique counter (HO)
 Package uniquecounter Info: New unique counter `rerunfilecheck' on input line 2
 84.
 )
-\Hy@SectionHShift=\skip55
+\Hy@SectionHShift=\skip53
 )
 (C:\Users\dllau\AppData\Local\Programs\MiKTeX\tex/latex/float\float.sty
 Package: float 2001/11/08 v1.3d Float enhancements (AL)
-\c@float@type=\count293
+\c@float@type=\count292
 \float@exts=\toks26
 \float@box=\box53
 \@float@everytoks=\toks27
@@ -336,54 +330,95 @@ Package: caption 2023/08/05 v3.6o Customizing captions (AR)
 
 (C:\Users\dllau\AppData\Local\Programs\MiKTeX\tex/latex/caption\caption3.sty
 Package: caption3 2023/07/31 v2.4d caption3 kernel (AR)
-\caption@tempdima=\dimen178
-\captionmargin=\dimen179
-\caption@leftmargin=\dimen180
-\caption@rightmargin=\dimen181
-\caption@width=\dimen182
-\caption@indent=\dimen183
-\caption@parindent=\dimen184
-\caption@hangindent=\dimen185
+\caption@tempdima=\dimen177
+\captionmargin=\dimen178
+\caption@leftmargin=\dimen179
+\caption@rightmargin=\dimen180
+\caption@width=\dimen181
+\caption@indent=\dimen182
+\caption@parindent=\dimen183
+\caption@hangindent=\dimen184
 Package caption Info: Standard document class detected.
 )
-\c@caption@flags=\count294
-\c@continuedfloat=\count295
+\c@caption@flags=\count293
+\c@continuedfloat=\count294
 Package caption Info: float package is loaded.
 Package caption Info: hyperref package is loaded.
 )
 (C:\Users\dllau\AppData\Local\Programs\MiKTeX\tex/latex/caption\subcaption.sty
 Package: subcaption 2023/07/28 v1.6b Sub-captions (AR)
 Package caption Info: New subtype `subfigure' on input line 238.
-\c@subfigure=\count296
+\c@subfigure=\count295
 Package caption Info: New subtype `subtable' on input line 238.
-\c@subtable=\count297
+\c@subtable=\count296
+) (C:\Users\dllau\AppData\Local\Programs\MiKTeX\tex/latex/listings\listings.sty
+\lst@mode=\count297
+\lst@gtempboxa=\box55
+\lst@token=\toks28
+\lst@length=\count298
+\lst@currlwidth=\dimen185
+\lst@column=\count299
+\lst@pos=\count300
+\lst@lostspace=\dimen186
+\lst@width=\dimen187
+\lst@newlines=\count301
+\lst@lineno=\count302
+\lst@maxwidth=\dimen188
+
+(C:\Users\dllau\AppData\Local\Programs\MiKTeX\tex/latex/listings\lstmisc.sty
+File: lstmisc.sty 2023/02/27 1.9 (Carsten Heinz)
+\c@lstnumber=\count303
+\lst@skipnumbers=\count304
+\lst@framebox=\box56
+)
+(C:\Users\dllau\AppData\Local\Programs\MiKTeX\tex/latex/listings\listings.cfg
+File: listings.cfg 2023/02/27 1.9 listings configuration
+))
+Package: listings 2023/02/27 1.9 (Carsten Heinz)
+(C:\Users\dllau\AppData\Local\Programs\MiKTeX\tex/latex/xcolor\xcolor.sty
+Package: xcolor 2023/11/15 v3.01 LaTeX color extensions (UK)
+
+(C:\Users\dllau\AppData\Local\Programs\MiKTeX\tex/latex/graphics-cfg\color.cfg
+File: color.cfg 2016/01/02 v1.6 sample color configuration
+)
+Package xcolor Info: Driver file: pdftex.def on input line 274.
+(C:\Users\dllau\AppData\Local\Programs\MiKTeX\tex/latex/graphics\mathcolor.ltx)
+Package xcolor Info: Model `cmy' substituted by `cmy0' on input line 1350.
+Package xcolor Info: Model `hsb' substituted by `rgb' on input line 1354.
+Package xcolor Info: Model `RGB' extended on input line 1366.
+Package xcolor Info: Model `HTML' substituted by `rgb' on input line 1368.
+Package xcolor Info: Model `Hsb' substituted by `hsb' on input line 1369.
+Package xcolor Info: Model `tHsb' substituted by `hsb' on input line 1370.
+Package xcolor Info: Model `HSB' substituted by `hsb' on input line 1371.
+Package xcolor Info: Model `Gray' substituted by `gray' on input line 1372.
+Package xcolor Info: Model `wave' substituted by `hsb' on input line 1373.
 )
 (C:\Users\dllau\AppData\Local\Programs\MiKTeX\tex/latex/l3backend\l3backend-pdf
 tex.def
 File: l3backend-pdftex.def 2024-01-04 L3 backend support: PDF output (pdfTeX)
-\l__color_backend_stack_int=\count298
-\l__pdf_internal_box=\box55
-) (gnn_report.aux)
-\openout1 = `gnn_report.aux'.
+\l__color_backend_stack_int=\count305
+\l__pdf_internal_box=\box57
+) (electrostatic_report.aux)
+\openout1 = `electrostatic_report.aux'.
 
-LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 18.
-LaTeX Font Info:    ... okay on input line 18.
-LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 18.
-LaTeX Font Info:    ... okay on input line 18.
-LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 18.
-LaTeX Font Info:    ... okay on input line 18.
-LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 18.
-LaTeX Font Info:    ... okay on input line 18.
-LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 18.
-LaTeX Font Info:    ... okay on input line 18.
-LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 18.
-LaTeX Font Info:    ... okay on input line 18.
-LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 18.
-LaTeX Font Info:    ... okay on input line 18.
-LaTeX Font Info:    Checking defaults for PD1/pdf/m/n on input line 18.
-LaTeX Font Info:    ... okay on input line 18.
-LaTeX Font Info:    Checking defaults for PU/pdf/m/n on input line 18.
-LaTeX Font Info:    ... okay on input line 18.
+LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 26.
+LaTeX Font Info:    ... okay on input line 26.
+LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 26.
+LaTeX Font Info:    ... okay on input line 26.
+LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 26.
+LaTeX Font Info:    ... okay on input line 26.
+LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 26.
+LaTeX Font Info:    ... okay on input line 26.
+LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 26.
+LaTeX Font Info:    ... okay on input line 26.
+LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 26.
+LaTeX Font Info:    ... okay on input line 26.
+LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 26.
+LaTeX Font Info:    ... okay on input line 26.
+LaTeX Font Info:    Checking defaults for PD1/pdf/m/n on input line 26.
+LaTeX Font Info:    ... okay on input line 26.
+LaTeX Font Info:    Checking defaults for PU/pdf/m/n on input line 26.
+LaTeX Font Info:    ... okay on input line 26.
 
 *geometry* driver: auto-detecting
 *geometry* detected driver: pdftex
@@ -423,17 +458,17 @@ LaTeX Font Info:    ... okay on input line 18.
 (C:\Users\dllau\AppData\Local\Programs\MiKTeX\tex/context/base/mkii\supp-pdf.mk
 ii
 [Loading MPS to PDF converter (version 2006.09.02).]
-\scratchcounter=\count299
-\scratchdimen=\dimen186
-\scratchbox=\box56
-\nofMPsegments=\count300
-\nofMParguments=\count301
-\everyMPshowfont=\toks28
-\MPscratchCnt=\count302
-\MPscratchDim=\dimen187
-\MPnumerator=\count303
-\makeMPintoPDFobject=\count304
-\everyMPtoPDFconversion=\toks29
+\scratchcounter=\count306
+\scratchdimen=\dimen189
+\scratchbox=\box58
+\nofMPsegments=\count307
+\nofMParguments=\count308
+\everyMPshowfont=\toks29
+\MPscratchCnt=\count309
+\MPscratchDim=\dimen190
+\MPnumerator=\count310
+\makeMPintoPDFobject=\count311
+\everyMPtoPDFconversion=\toks30
 )
 (C:\Users\dllau\AppData\Local\Programs\MiKTeX\tex/latex/epstopdf-pkg\epstopdf-b
 ase.sty
@@ -445,196 +480,107 @@ Package epstopdf-base Info: Redefining graphics rule for `.eps' on input line 4
 fg
 File: epstopdf-sys.cfg 2021/03/18 v2.0 Configuration of epstopdf for MiKTeX
 ))
-Package hyperref Info: Link coloring OFF on input line 18.
- (gnn_report.out) (gnn_report.out)
+Package hyperref Info: Link coloring OFF on input line 26.
+ (electrostatic_report.out) (electrostatic_report.out)
 \@outlinefile=\write3
-\openout3 = `gnn_report.out'.
+\openout3 = `electrostatic_report.out'.
 
 Package caption Info: Begin \AtBeginDocument code.
+Package caption Info: listings package is loaded.
 Package caption Info: End \AtBeginDocument code.
-LaTeX Font Info:    Trying to load font information for U+msa on input line 21.
+\c@lstlisting=\count312
+LaTeX Font Info:    Trying to load font information for U+msa on input line 29.
 
 
 (C:\Users\dllau\AppData\Local\Programs\MiKTeX\tex/latex/amsfonts\umsa.fd
 File: umsa.fd 2013/01/14 v3.01 AMS symbols A
 )
-LaTeX Font Info:    Trying to load font information for U+msb on input line 21.
+LaTeX Font Info:    Trying to load font information for U+msb on input line 29.
 
 
 (C:\Users\dllau\AppData\Local\Programs\MiKTeX\tex/latex/amsfonts\umsb.fd
 File: umsb.fd 2013/01/14 v3.01 AMS symbols B
 )
-<architecture.png, id=183, 860.013pt x 425.9112pt>
-File: architecture.png Graphic file (type png)
-<use architecture.png>
-Package pdftex.def Info: architecture.png  used on input line 54.
-(pdftex.def)             Requested size: 407.66833pt x 201.89398pt.
-
 [1
 
 {C:/Users/dllau/AppData/Local/MiKTeX/fonts/map/pdftex/pdftex.map}]
-<training_loss.png, id=198, 569.9694pt x 352.1958pt>
-File: training_loss.png Graphic file (type png)
-<use training_loss.png>
-Package pdftex.def Info: training_loss.png  used on input line 89.
-(pdftex.def)             Requested size: 317.07614pt x 195.93315pt.
- [2 <./architecture.png>]
-<comparison_final.png, id=212, 1003.5894pt x 569.0058pt>
-File: comparison_final.png Graphic file (type png)
-<use comparison_final.png>
-Package pdftex.def Info: comparison_final.png  used on input line 100.
-(pdftex.def)             Requested size: 452.9679pt x 256.82297pt.
- [3 <./training_loss.png> <./comparison_final.png>]
-<error_by_region.png, id=221, 714.9912pt x 423.984pt>
-File: error_by_region.png Graphic file (type png)
-<use error_by_region.png>
-Package pdftex.def Info: error_by_region.png  used on input line 126.
-(pdftex.def)             Requested size: 362.37569pt x 214.88979pt.
-<training_data_distribution.png, id=222, 859.5312pt x 279.9258pt>
-File: training_data_distribution.png Graphic file (type png)
-<use training_data_distribution.png>
-Package pdftex.def Info: training_data_distribution.png  used on input line 143
+<figures/electrostatic_fields.png, id=112, 998.7714pt x 277.035pt>
+File: figures/electrostatic_fields.png Graphic file (type png)
+<use figures/electrostatic_fields.png>
+Package pdftex.def Info: figures/electrostatic_fields.png  used on input line 1
+10.
+(pdftex.def)             Requested size: 452.9679pt x 125.64107pt.
+ [2]
+<figures/poisson_verification.png, id=131, 709.6914pt x 297.2706pt>
+File: figures/poisson_verification.png Graphic file (type png)
+<use figures/poisson_verification.png>
+Package pdftex.def Info: figures/poisson_verification.png  used on input line 1
+25.
+(pdftex.def)             Requested size: 385.02547pt x 161.2767pt.
+<figures/superposition_test.png, id=133, 701.5008pt x 629.7126pt>
+File: figures/superposition_test.png Graphic file (type png)
+<use figures/superposition_test.png>
+Package pdftex.def Info: figures/superposition_test.png  used on input line 141
 .
-(pdftex.def)             Requested size: 452.9679pt x 147.52278pt.
- [4 <./error_by_region.png> <./training_data_distribution.png>] [5] [6]
-<mlp_simulation.png, id=246, 1011.78pt x 289.08pt>
-File: mlp_simulation.png Graphic file (type png)
-<use mlp_simulation.png>
-Package pdftex.def Info: mlp_simulation.png  used on input line 311.
-(pdftex.def)             Requested size: 452.9679pt x 129.41873pt.
- [7 <./mlp_simulation.png>] [8]
-<mlp_2d_results.png, id=265, 1011.78pt x 722.7pt>
-File: mlp_2d_results.png Graphic file (type png)
-<use mlp_2d_results.png>
-Package pdftex.def Info: mlp_2d_results.png  used on input line 445.
-(pdftex.def)             Requested size: 452.9679pt x 323.54683pt.
- [9]
-<simulation_2d_comparison.png, id=273, 1084.05pt x 722.7pt>
-File: simulation_2d_comparison.png Graphic file (type png)
-<use simulation_2d_comparison.png>
-Package pdftex.def Info: simulation_2d_comparison.png  used on input line 477.
-(pdftex.def)             Requested size: 452.9679pt x 301.97705pt.
- [10 <./mlp_2d_results.png>]
+(pdftex.def)             Requested size: 385.02547pt x 345.63196pt.
 
-Package hyperref Warning: Token not allowed in a PDF string (Unicode):
-(hyperref)                removing `math shift' on input line 486.
-
-
-Package hyperref Warning: Token not allowed in a PDF string (Unicode):
-(hyperref)                removing `\gamma' on input line 486.
-
-
-Package hyperref Warning: Token not allowed in a PDF string (Unicode):
-(hyperref)                removing `math shift' on input line 486.
-
-
-Package hyperref Warning: Token not allowed in a PDF string (Unicode):
-(hyperref)                removing `math shift' on input line 502.
-
-
-Package hyperref Warning: Token not allowed in a PDF string (Unicode):
-(hyperref)                removing `\gamma' on input line 502.
-
-
-Package hyperref Warning: Token not allowed in a PDF string (Unicode):
-(hyperref)                removing `math shift' on input line 502.
-
-[11 <./simulation_2d_comparison.png>]
-
-Package hyperref Warning: Token not allowed in a PDF string (Unicode):
-(hyperref)                removing `math shift' on input line 537.
-
-
-Package hyperref Warning: Token not allowed in a PDF string (Unicode):
-(hyperref)                removing `\gamma' on input line 537.
-
-
-Package hyperref Warning: Token not allowed in a PDF string (Unicode):
-(hyperref)                removing `math shift' on input line 537.
-
-[12]
-<gamma_comparison.png, id=296, 1075.3776pt x 852.3042pt>
-File: gamma_comparison.png Graphic file (type png)
-<use gamma_comparison.png>
-Package pdftex.def Info: gamma_comparison.png  used on input line 579.
-(pdftex.def)             Requested size: 452.9679pt x 359.00574pt.
-
-
-Package hyperref Warning: Token not allowed in a PDF string (Unicode):
-(hyperref)                removing `math shift' on input line 605.
-
-
-Package hyperref Warning: Token not allowed in a PDF string (Unicode):
-(hyperref)                removing `\gamma' on input line 605.
-
-
-Package hyperref Warning: Token not allowed in a PDF string (Unicode):
-(hyperref)                removing `math shift' on input line 605.
-
-[13 <./gamma_comparison.png>] [14] [15]
-<results_1Dsod1fl.png, id=329, 1004.0712pt x 569.0058pt>
-File: results_1Dsod1fl.png Graphic file (type png)
-<use results_1Dsod1fl.png>
-Package pdftex.def Info: results_1Dsod1fl.png  used on input line 719.
-(pdftex.def)             Requested size: 452.9679pt x 256.69273pt.
-<results_1Dsod2fl.png, id=330, 1004.0712pt x 569.0058pt>
-File: results_1Dsod2fl.png Graphic file (type png)
-<use results_1Dsod2fl.png>
-Package pdftex.def Info: results_1Dsod2fl.png  used on input line 745.
-(pdftex.def)             Requested size: 452.9679pt x 256.69273pt.
- [16 <./results_1Dsod1fl.png>]
-<gamma_sweep_results.png, id=339, 1084.05pt x 722.7pt>
-File: gamma_sweep_results.png Graphic file (type png)
-<use gamma_sweep_results.png>
-Package pdftex.def Info: gamma_sweep_results.png  used on input line 774.
-(pdftex.def)             Requested size: 452.9679pt x 301.97705pt.
- [17 <./results_1Dsod2fl.png>]
-<gamma_sweep_results_errors.png, id=347, 722.7pt x 433.62pt>
-File: gamma_sweep_results_errors.png Graphic file (type png)
-<use gamma_sweep_results_errors.png>
-Package pdftex.def Info: gamma_sweep_results_errors.png  used on input line 781
-.
-(pdftex.def)             Requested size: 362.37569pt x 217.4248pt.
- [18 <./gamma_sweep_results.png> <./gamma_sweep_results_errors.png>]
-Overfull \hbox (4.86374pt too wide) in paragraph at lines 813--826
- [][] 
+[3 <./figures/electrostatic_fields.png> <./figures/poisson_verification.png>]
+Overfull \hbox (5.04562pt too wide) in paragraph at lines 167--168
+\OT1/cmr/m/n/10.95 The MAT-LAB ref-er-ence im-ple-men-ta-tion has been ported t
+o Python for in-te-gra-tion with PyTorch-
  []
 
-[19] [20] (gnn_report.aux)
+
+Overfull \hbox (103.49785pt too wide) in paragraph at lines 167--168
+\OT1/cmr/m/n/10.95 based neu-ral net-work train-ing. The Python im-ple-men-ta-t
+ion is lo-cated in \OT1/cmtt/m/n/10.95 electrostatic[]unet/electrostatic[]2d.py
+
+ []
+
+[4 <./figures/superposition_test.png>]
+(C:\Users\dllau\AppData\Local\Programs\MiKTeX\tex/latex/listings\lstlang1.sty
+File: lstlang1.sty 2023/02/27 1.9 listings language file
+)
+LaTeX Font Info:    Font shape `OT1/cmtt/bx/n' in size <10> not available
+(Font)              Font shape `OT1/cmtt/m/n' tried instead on input line 183.
+
+[5] [6] [7] (electrostatic_report.aux)
  ***********
 LaTeX2e <2023-11-01> patch level 1
 L3 programming layer <2024-01-04>
  ***********
-Package rerunfilecheck Info: File `gnn_report.out' has not changed.
-(rerunfilecheck)             Checksum: DF63DFE5DC592096BF32F73861346671;8248.
+Package rerunfilecheck Info: File `electrostatic_report.out' has not changed.
+(rerunfilecheck)             Checksum: 170209BB59FC7E4F9C59DD4A93AFBD10;2863.
  ) 
 Here is how much of TeX's memory you used:
- 12050 strings out of 474486
- 192298 string characters out of 5743754
- 1941542 words of memory out of 5000000
- 34052 multiletter control sequences out of 15000+600000
- 570307 words of font info for 83 fonts, out of 8000000 for 9000
+ 14062 strings out of 474486
+ 218584 string characters out of 5743754
+ 2026542 words of memory out of 5000000
+ 36108 multiletter control sequences out of 15000+600000
+ 569600 words of font info for 81 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 75i,12n,79p,1239b,528s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 75i,9n,79p,520b,1344s stack positions out of 10000i,1000n,20000p,200000b,200000s
  <C:\Users\dllau\AppData\Local\MiKTeX\fonts/pk/ljfour/jknappen/ec/dpi600\tcrm
 1095.pk><C:/Users/dllau/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfon
 ts/cm/cmbx10.pfb><C:/Users/dllau/AppData/Local/Programs/MiKTeX/fonts/type1/publ
 ic/amsfonts/cm/cmbx12.pfb><C:/Users/dllau/AppData/Local/Programs/MiKTeX/fonts/t
-ype1/public/amsfonts/cm/cmbx8.pfb><C:/Users/dllau/AppData/Local/Programs/MiKTeX
-/fonts/type1/public/amsfonts/cm/cmmi10.pfb><C:/Users/dllau/AppData/Local/Progra
-ms/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi12.pfb><C:/Users/dllau/AppData/Loc
-al/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi8.pfb><C:/Users/dllau/App
-Data/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr10.pfb><C:/Users/d
-llau/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr12.pfb><C:
-/Users/dllau/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr17
-.pfb><C:/Users/dllau/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/
-cm/cmr7.pfb><C:/Users/dllau/AppData/Local/Programs/MiKTeX/fonts/type1/public/am
-sfonts/cm/cmr8.pfb><C:/Users/dllau/AppData/Local/Programs/MiKTeX/fonts/type1/pu
-blic/amsfonts/cm/cmsy10.pfb><C:/Users/dllau/AppData/Local/Programs/MiKTeX/fonts
-/type1/public/amsfonts/cm/cmsy8.pfb>
-Output written on gnn_report.pdf (20 pages, 1815748 bytes).
+ype1/public/amsfonts/cm/cmex10.pfb><C:/Users/dllau/AppData/Local/Programs/MiKTe
+X/fonts/type1/public/amsfonts/cm/cmitt10.pfb><C:/Users/dllau/AppData/Local/Prog
+rams/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi10.pfb><C:/Users/dllau/AppData/L
+ocal/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi6.pfb><C:/Users/dllau/A
+ppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmmi8.pfb><C:/Users
+/dllau/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr10.pfb><
+C:/Users/dllau/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmr
+12.pfb><C:/Users/dllau/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfont
+s/cm/cmr17.pfb><C:/Users/dllau/AppData/Local/Programs/MiKTeX/fonts/type1/public
+/amsfonts/cm/cmr8.pfb><C:/Users/dllau/AppData/Local/Programs/MiKTeX/fonts/type1
+/public/amsfonts/cm/cmsy10.pfb><C:/Users/dllau/AppData/Local/Programs/MiKTeX/fo
+nts/type1/public/amsfonts/cm/cmsy8.pfb><C:/Users/dllau/AppData/Local/Programs/M
+iKTeX/fonts/type1/public/amsfonts/cm/cmti10.pfb><C:/Users/dllau/AppData/Local/P
+rograms/MiKTeX/fonts/type1/public/amsfonts/cm/cmtt10.pfb>
+Output written on electrostatic_report.pdf (7 pages, 761024 bytes).
 PDF statistics:
- 473 PDF objects out of 1000 (max. 8388607)
- 141 named destinations out of 1000 (max. 500000)
- 426 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 279 PDF objects out of 1000 (max. 8388607)
+ 78 named destinations out of 1000 (max. 500000)
+ 192 words of extra memory for PDF output out of 10000 (max. 10000000)
 

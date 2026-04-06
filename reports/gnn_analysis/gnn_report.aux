@@ -70,6 +70,56 @@
 \newlabel{tab:2d_simulation}{{13}{10}{2D simulation comparison on 50$\times $25 grid}{table.caption.20}{}}
 \@writefile{lof}{\contentsline {figure}{\numberline {8}{\ignorespaces 2D Sod shock tube simulation: MLP vs analytical Roe. Top row shows density contours (analytical, MLP, error). Bottom row shows 1D slices at $y = 0.5$ for density, velocity, and pressure.}}{11}{figure.caption.21}\protected@file@percent }
 \newlabel{fig:2d_simulation}{{8}{11}{2D Sod shock tube simulation: MLP vs analytical Roe. Top row shows density contours (analytical, MLP, error). Bottom row shows 1D slices at $y = 0.5$ for density, velocity, and pressure}{figure.caption.21}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {7}Conclusions}{11}{section.7}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {8}Future Work}{12}{section.8}\protected@file@percent }
-\gdef \@abspage@last{12}
+\@writefile{toc}{\contentsline {section}{\numberline {7}Generalization to Different Gases: Varying $\gamma $}{11}{section.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.1}Motivation}{11}{subsection.7.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.2}Training with $\gamma $ as Input}{12}{subsection.7.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {14}{\ignorespaces Training configuration for $\gamma $-parameterized flux model.}}{12}{table.caption.22}\protected@file@percent }
+\newlabel{tab:gamma_training}{{14}{12}{Training configuration for $\gamma $-parameterized flux model}{table.caption.22}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.3}Interpolation Test: Unseen $\gamma $ Values}{12}{subsection.7.3}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {15}{\ignorespaces Simulation errors for interpolated $\gamma $ values (MLP vs Roe solver).}}{12}{table.caption.23}\protected@file@percent }
+\newlabel{tab:gamma_errors}{{15}{12}{Simulation errors for interpolated $\gamma $ values (MLP vs Roe solver)}{table.caption.23}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {9}{\ignorespaces Sod shock tube comparison for three interpolated $\gamma $ values: 1.228 (low), 1.450 (mid), and 1.672 (high). Solid blue: Roe solver; dashed red: MLP. All three show excellent agreement.}}{13}{figure.caption.24}\protected@file@percent }
+\newlabel{fig:gamma_comparison}{{9}{13}{Sod shock tube comparison for three interpolated $\gamma $ values: 1.228 (low), 1.450 (mid), and 1.672 (high). Solid blue: Roe solver; dashed red: MLP. All three show excellent agreement}{figure.caption.24}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.4}Verification: MLP vs Roe Produce Different Results}{13}{subsection.7.4}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {16}{\ignorespaces Flux comparison at the Sod initial discontinuity ($\gamma = 1.4$). Non-zero differences confirm MLP is being used.}}{13}{table.caption.25}\protected@file@percent }
+\newlabel{tab:verification}{{16}{13}{Flux comparison at the Sod initial discontinuity ($\gamma = 1.4$). Non-zero differences confirm MLP is being used}{table.caption.25}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {7.5}Why Including $\gamma $ as Input Improves Results}{14}{subsection.7.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {8}Conclusions}{14}{section.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {9}Multiphase Training: Comprehensive Gamma Coverage}{14}{section.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {9.1}Training Configuration}{15}{subsection.9.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {17}{\ignorespaces Multiphase training configuration with 20M samples.}}{15}{table.caption.26}\protected@file@percent }
+\newlabel{tab:multiphase_config}{{17}{15}{Multiphase training configuration with 20M samples}{table.caption.26}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {9.1.1}Importance Sampling Strategy}{15}{subsubsection.9.1.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {9.2}Training Results}{15}{subsection.9.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {18}{\ignorespaces Multiphase training results showing sub-0.1\% relative error on all flux components.}}{15}{table.caption.27}\protected@file@percent }
+\newlabel{tab:multiphase_results}{{18}{15}{Multiphase training results showing sub-0.1\% relative error on all flux components}{table.caption.27}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {9.3}Simulation Validation}{15}{subsection.9.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {9.3.1}Single-Fluid Shock Tube (in\_1Dsod1fl)}{15}{subsubsection.9.3.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {19}{\ignorespaces Single-fluid shock tube errors (MLP vs analytical Roe).}}{16}{table.caption.28}\protected@file@percent }
+\newlabel{tab:single_fluid}{{19}{16}{Single-fluid shock tube errors (MLP vs analytical Roe)}{table.caption.28}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {10}{\ignorespaces Single-fluid Sod shock tube: MLP (dashed) vs analytical Roe (solid). The MLP correctly captures the expansion fan, contact discontinuity, and shock wave with $\gamma = 1.4$.}}{16}{figure.caption.29}\protected@file@percent }
+\newlabel{fig:single_fluid}{{10}{16}{Single-fluid Sod shock tube: MLP (dashed) vs analytical Roe (solid). The MLP correctly captures the expansion fan, contact discontinuity, and shock wave with $\gamma = 1.4$}{figure.caption.29}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {9.3.2}Two-Fluid Shock Tube (in\_1Dsod2fl)}{16}{subsubsection.9.3.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {20}{\ignorespaces Two-fluid shock tube errors (MLP vs analytical Roe).}}{16}{table.caption.30}\protected@file@percent }
+\newlabel{tab:two_fluid}{{20}{16}{Two-fluid shock tube errors (MLP vs analytical Roe)}{table.caption.30}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {11}{\ignorespaces Two-fluid Sod shock tube: MLP vs analytical Roe. The model handles the interface between gases with different $\gamma $ values seamlessly.}}{17}{figure.caption.31}\protected@file@percent }
+\newlabel{fig:two_fluid}{{11}{17}{Two-fluid Sod shock tube: MLP vs analytical Roe. The model handles the interface between gases with different $\gamma $ values seamlessly}{figure.caption.31}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {9.3.3}Gamma Sweep Validation}{17}{subsubsection.9.3.3}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {21}{\ignorespaces Gamma sweep results showing consistent accuracy across the full range.}}{17}{table.caption.32}\protected@file@percent }
+\newlabel{tab:gamma_sweep}{{21}{17}{Gamma sweep results showing consistent accuracy across the full range}{table.caption.32}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {12}{\ignorespaces Density profiles for Sod shock tubes with different $\gamma $ values. Blue solid: analytical Roe; red dashed: MLP. All six cases show excellent agreement.}}{18}{figure.caption.33}\protected@file@percent }
+\newlabel{fig:gamma_sweep}{{12}{18}{Density profiles for Sod shock tubes with different $\gamma $ values. Blue solid: analytical Roe; red dashed: MLP. All six cases show excellent agreement}{figure.caption.33}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {13}{\ignorespaces Error summary across gamma values. Best performance is in the middle of the training range ($\gamma = 1.4$--1.5), with slightly higher errors at the edges.}}{18}{figure.caption.34}\protected@file@percent }
+\newlabel{fig:gamma_errors}{{13}{18}{Error summary across gamma values. Best performance is in the middle of the training range ($\gamma = 1.4$--1.5), with slightly higher errors at the edges}{figure.caption.34}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {9.4}Model Size Optimization}{18}{subsection.9.4}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {22}{\ignorespaces Model size comparison (200 epochs, 2M samples). The medium 3$\times $128 model offers the best tradeoff between size and accuracy.}}{19}{table.caption.35}\protected@file@percent }
+\newlabel{tab:model_sizes}{{22}{19}{Model size comparison (200 epochs, 2M samples). The medium 3$\times $128 model offers the best tradeoff between size and accuracy}{table.caption.35}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {9.4.1}Validation: Medium Model vs Large Model}{19}{subsubsection.9.4.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {23}{\ignorespaces Simulation accuracy comparison between large and medium models.}}{19}{table.caption.36}\protected@file@percent }
+\newlabel{tab:model_comparison}{{23}{19}{Simulation accuracy comparison between large and medium models}{table.caption.36}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {24}{\ignorespaces Summary of medium model benefits.}}{19}{table.caption.37}\protected@file@percent }
+\newlabel{tab:medium_benefits}{{24}{19}{Summary of medium model benefits}{table.caption.37}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {9.5}Key Findings}{19}{subsection.9.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {10}Conclusions}{20}{section.10}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {11}Future Work}{20}{section.11}\protected@file@percent }
+\gdef \@abspage@last{20}

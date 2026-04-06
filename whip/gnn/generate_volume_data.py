@@ -38,20 +38,21 @@ GRAVITY = 9.81
 DT = 1e-4
 TAPER_RATIO = 10.0
 
-# --- Volume bounds (from simulation analysis) ---
-# Self velocity bounds (symmetric, from Qt trajectory analysis)
-VEL_X_RANGE = (-13.1, 13.1)
-VEL_Y_RANGE = (-7.8, 7.8)
+# --- Volume bounds (from simulation analysis + safety margin) ---
+# Self velocity bounds: actual max is 13.1 m/s at tip bead.
+# Add 50% margin so the model handles GNN rollout errors gracefully.
+VEL_X_RANGE = (-20.0, 20.0)
+VEL_Y_RANGE = (-12.0, 12.0)
 
 # Neighbor distance bounds (polar): r near rest length
 # Qt data shows actual stretch is -0.02% to +0.70% of rest length.
-# We use +/- 5% for margin.
-R_MIN_FACTOR = 0.95   # 0.95 * rest_length
-R_MAX_FACTOR = 1.05   # 1.05 * rest_length
+# Use +/- 10% for margin against rollout drift.
+R_MIN_FACTOR = 0.90   # 0.90 * rest_length
+R_MAX_FACTOR = 1.10   # 1.10 * rest_length
 
-# Neighbor relative velocity bounds (from Qt analysis: rel vel ~ 2x self vel range)
-REL_VEL_X_RANGE = (-26.2, 26.2)
-REL_VEL_Y_RANGE = (-15.6, 15.6)
+# Neighbor relative velocity bounds (2x self vel range)
+REL_VEL_X_RANGE = (-40.0, 40.0)
+REL_VEL_Y_RANGE = (-24.0, 24.0)
 
 
 def compute_tapered_masses():
@@ -143,6 +144,172 @@ def compute_bead_step(vel, mass, is_fixed,
     return delta_pos, delta_vel
 
 
+def generate_batch(rng, n, masses, near_zero_scale=None):
+    """Generate n samples. If near_zero_scale is set, sample velocities and
+    stretch from a narrow band around zero (Gaussian with that scale)."""
+
+    bead_ids = rng.integers(0, N_BEADS, size=n)
+    mass = masses[bead_ids]
+    is_fixed = bead_ids == 0
+    has_left = bead_ids > 0
+    has_right = bead_ids < (N_BEADS - 1)
+
+    left_mass = np.where(has_left, masses[np.clip(bead_ids - 1, 0, N_BEADS - 1)], 0.0)
+    right_mass = np.where(has_right, masses[np.clip(bead_ids + 1, 0, N_BEADS - 1)], 0.0)
+    left_rest_len = np.where(has_left, REST_LENGTH, 0.0)
+    right_rest_len = np.where(has_right, REST_LENGTH, 0.0)
+
+    if near_zero_scale is None:
+        # Full volume sampling
+        vel_x = rng.uniform(*VEL_X_RANGE, size=n)
+        vel_y = rng.uniform(*VEL_Y_RANGE, size=n)
+        left_rel_pos_rand = sample_neighbor_polar(rng, n, REST_LENGTH)
+        left_rel_vel_rand = sample_rel_vel(rng, n)
+        right_rel_pos_rand = sample_neighbor_polar(rng, n, REST_LENGTH)
+        right_rel_vel_rand = sample_rel_vel(rng, n)
+    else:
+        # Near-zero sampling: small velocities, rods near rest length
+        s = near_zero_scale
+        vel_x = rng.normal(0, s * VEL_X_RANGE[1], size=n)
+        vel_y = rng.normal(0, s * VEL_Y_RANGE[1], size=n)
+
+        # Neighbor at rest length with tiny stretch (Gaussian around 0%)
+        r = REST_LENGTH + rng.normal(0, s * REST_LENGTH * 0.05, size=n)
+        r = np.clip(r, REST_LENGTH * 0.9, REST_LENGTH * 1.1)
+        theta = rng.uniform(0, 2 * np.pi, size=n)
+        left_rel_pos_rand = np.column_stack([r * np.cos(theta), r * np.sin(theta)])
+        right_rel_pos_rand = np.column_stack([r * np.cos(rng.uniform(0, 2*np.pi, n)),
+                                               r * np.sin(rng.uniform(0, 2*np.pi, n))])
+
+        # Small relative velocities
+        left_rel_vel_rand = np.column_stack([
+            rng.normal(0, s * REL_VEL_X_RANGE[1], size=n),
+            rng.normal(0, s * REL_VEL_Y_RANGE[1], size=n),
+        ])
+        right_rel_vel_rand = np.column_stack([
+            rng.normal(0, s * REL_VEL_X_RANGE[1], size=n),
+            rng.normal(0, s * REL_VEL_Y_RANGE[1], size=n),
+        ])
+
+    vel = np.column_stack([vel_x, vel_y])
+    left_rel_pos = np.where(has_left[:, None], left_rel_pos_rand, 0.0)
+    left_rel_vel = np.where(has_left[:, None], left_rel_vel_rand, 0.0)
+    right_rel_pos = np.where(has_right[:, None], right_rel_pos_rand, 0.0)
+    right_rel_vel = np.where(has_right[:, None], right_rel_vel_rand, 0.0)
+
+    return (bead_ids, vel, mass, is_fixed, has_left, has_right,
+            left_rel_pos, left_rel_vel, left_mass, left_rest_len,
+            right_rel_pos, right_rel_vel, right_mass, right_rest_len)
+
+
+def generate_trajectory_samples(rng, n_sims, n_steps, masses):
+    """Run actual simulations and extract per-bead samples from trajectories.
+
+    Each simulation starts with random velocity perturbations. Every step,
+    we record per-bead input features and the resulting deltas — capturing
+    the correlated states that actually occur during chain dynamics.
+    """
+    import sys, os
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+    from simulation import create_chain, compute_forces
+
+    all_vel = []
+    all_mass = []
+    all_fixed = []
+    all_has_left = []
+    all_has_right = []
+    all_left_rel_pos = []
+    all_left_rel_vel = []
+    all_left_mass = []
+    all_left_rest = []
+    all_right_rel_pos = []
+    all_right_rel_vel = []
+    all_right_mass = []
+    all_right_rest = []
+
+    for sim_id in range(n_sims):
+        state = create_chain(
+            n_nodes=N_BEADS, total_length=TOTAL_LENGTH, total_mass=TOTAL_MASS,
+            stiffness=STIFFNESS, damping=DAMPING, drag=DRAG,
+            taper_ratio=TAPER_RATIO,
+        )
+        anchor = state.pos[0].copy()
+
+        # Random initial velocity perturbation
+        for i in range(1, N_BEADS):
+            state.vel[i] = rng.normal(0, 2.0, size=2)
+
+        for step in range(n_steps):
+            # Capture pre-step state
+            pos_pre = state.pos.copy()
+            vel_pre = state.vel.copy()
+
+            # Step physics (no SHAKE)
+            forces = compute_forces(state, GRAVITY)
+            acc = forces / state.mass[:, None]
+            acc[state.fixed] = 0.0
+            state.vel += DT * acc
+            state.vel[state.fixed] = 0.0
+            state.pos += DT * state.vel
+            state.pos[0] = anchor
+            state.vel[0] = 0.0
+
+            # Extract per-bead relative features from pre-step state
+            for i in range(N_BEADS):
+                all_vel.append(vel_pre[i])
+                all_mass.append(state.mass[i])
+                all_fixed.append(state.fixed[i])
+                all_has_left.append(i > 0)
+                all_has_right.append(i < N_BEADS - 1)
+
+                if i > 0:
+                    all_left_rel_pos.append(pos_pre[i-1] - pos_pre[i])
+                    all_left_rel_vel.append(vel_pre[i-1] - vel_pre[i])
+                    all_left_mass.append(state.mass[i-1])
+                    all_left_rest.append(state.rest_lengths[i-1])
+                else:
+                    all_left_rel_pos.append([0.0, 0.0])
+                    all_left_rel_vel.append([0.0, 0.0])
+                    all_left_mass.append(0.0)
+                    all_left_rest.append(0.0)
+
+                if i < N_BEADS - 1:
+                    all_right_rel_pos.append(pos_pre[i+1] - pos_pre[i])
+                    all_right_rel_vel.append(vel_pre[i+1] - vel_pre[i])
+                    all_right_mass.append(state.mass[i+1])
+                    all_right_rest.append(state.rest_lengths[i])
+                else:
+                    all_right_rel_pos.append([0.0, 0.0])
+                    all_right_rel_vel.append([0.0, 0.0])
+                    all_right_mass.append(0.0)
+                    all_right_rest.append(0.0)
+
+        if (sim_id + 1) % max(1, n_sims // 10) == 0:
+            print(f"\r    Trajectory {sim_id+1}/{n_sims}", end="", flush=True)
+
+    print()
+
+    n = len(all_vel)
+    bead_ids = np.tile(np.arange(N_BEADS), n_sims * n_steps)[:n]
+    vel = np.array(all_vel)
+    mass = np.array(all_mass)
+    is_fixed = np.array(all_fixed)
+    has_left = np.array(all_has_left)
+    has_right = np.array(all_has_right)
+    left_rel_pos = np.array(all_left_rel_pos)
+    left_rel_vel = np.array(all_left_rel_vel)
+    left_mass = np.array(all_left_mass)
+    left_rest_len = np.array(all_left_rest)
+    right_rel_pos = np.array(all_right_rel_pos)
+    right_rel_vel = np.array(all_right_rel_vel)
+    right_mass = np.array(all_right_mass)
+    right_rest_len = np.array(all_right_rest)
+
+    return (bead_ids, vel, mass, is_fixed, has_left, has_right,
+            left_rel_pos, left_rel_vel, left_mass, left_rest_len,
+            right_rel_pos, right_rel_vel, right_mass, right_rest_len)
+
+
 def generate(args):
     rng = np.random.default_rng(args.seed)
     masses = compute_tapered_masses()
@@ -150,49 +317,56 @@ def generate(args):
     r_min = REST_LENGTH * R_MIN_FACTOR
     r_max = REST_LENGTH * R_MAX_FACTOR
 
-    print(f"Generating {args.n_samples:,} volume-sampled bead training samples...")
+    # Split: 40% full-volume, 40% near-zero, 20% trajectory
+    n_full = args.n_samples * 2 // 5
+    n_near = args.n_samples * 2 // 5
+    # Trajectory samples: n_sims simulations, each n_traj_steps steps, 16 beads each
+    n_traj_target = args.n_samples - n_full - n_near
+    n_traj_steps = 2000  # steps per simulation
+    n_sims = max(1, n_traj_target // (n_traj_steps * N_BEADS))
+    n_traj_actual = n_sims * n_traj_steps * N_BEADS
+
+    print(f"Generating ~{args.n_samples:,} bead training samples...")
+    print(f"  {n_full:,} full-volume + {n_near:,} near-zero + "
+          f"{n_traj_actual:,} trajectory ({n_sims} sims x {n_traj_steps} steps)")
     print(f"  Masses: {masses}")
     print(f"  Self vel bounds: vel_x={VEL_X_RANGE}, vel_y={VEL_Y_RANGE}")
     print(f"  Neighbor distance: r=[{r_min:.4f}, {r_max:.4f}] "
           f"(rest={REST_LENGTH:.4f}, +/-{(R_MAX_FACTOR-1)*100:.0f}%)")
-    print(f"  Neighbor rel vel: dvx={REL_VEL_X_RANGE}, dvy={REL_VEL_Y_RANGE}")
+    print(f"  Near-zero scale: {args.near_zero_scale}")
 
-    N = args.n_samples
+    # Generate full-volume batch
+    print("  Generating full-volume samples...")
+    full = generate_batch(rng, n_full, masses, near_zero_scale=None)
 
-    # Sample random bead indices (0-15)
-    bead_ids = rng.integers(0, N_BEADS, size=N)
+    # Generate near-zero batch (small velocities, rods near rest)
+    print("  Generating near-zero samples...")
+    near = generate_batch(rng, n_near, masses, near_zero_scale=args.near_zero_scale)
 
-    # Look up per-bead properties
-    mass = masses[bead_ids]
-    is_fixed = bead_ids == 0
-    has_left = bead_ids > 0
-    has_right = bead_ids < (N_BEADS - 1)
+    # Generate trajectory samples from actual simulations
+    print("  Generating trajectory samples...")
+    traj = generate_trajectory_samples(rng, n_sims, n_traj_steps, masses)
 
-    # Neighbor masses (0 for ghost)
-    left_mass = np.where(has_left, masses[np.clip(bead_ids - 1, 0, N_BEADS - 1)], 0.0)
-    right_mass = np.where(has_right, masses[np.clip(bead_ids + 1, 0, N_BEADS - 1)], 0.0)
+    # Concatenate all three populations
+    def cat(*arrays):
+        return np.concatenate(arrays, axis=0)
 
-    # Rest lengths (0 for ghost)
-    left_rest_len = np.where(has_left, REST_LENGTH, 0.0)
-    right_rest_len = np.where(has_right, REST_LENGTH, 0.0)
+    bead_ids = cat(full[0], near[0], traj[0])
+    vel = cat(full[1], near[1], traj[1])
+    mass = cat(full[2], near[2], traj[2])
+    is_fixed = cat(full[3], near[3], traj[3])
+    has_left = cat(full[4], near[4], traj[4])
+    has_right = cat(full[5], near[5], traj[5])
+    left_rel_pos = cat(full[6], near[6], traj[6])
+    left_rel_vel = cat(full[7], near[7], traj[7])
+    left_mass = cat(full[8], near[8], traj[8])
+    left_rest_len = cat(full[9], near[9], traj[9])
+    right_rel_pos = cat(full[10], near[10], traj[10])
+    right_rel_vel = cat(full[11], near[11], traj[11])
+    right_mass = cat(full[12], near[12], traj[12])
+    right_rest_len = cat(full[13], near[13], traj[13])
 
-    # Sample self velocity
-    vel_x = rng.uniform(*VEL_X_RANGE, size=N)
-    vel_y = rng.uniform(*VEL_Y_RANGE, size=N)
-    vel = np.column_stack([vel_x, vel_y])
-
-    # Sample left neighbor relative position (polar) and relative velocity
-    left_rel_pos_rand = sample_neighbor_polar(rng, N, REST_LENGTH)
-    left_rel_vel_rand = sample_rel_vel(rng, N)
-    # Ghost beads: zero relative position and velocity
-    left_rel_pos = np.where(has_left[:, None], left_rel_pos_rand, 0.0)
-    left_rel_vel = np.where(has_left[:, None], left_rel_vel_rand, 0.0)
-
-    # Sample right neighbor relative position and velocity
-    right_rel_pos_rand = sample_neighbor_polar(rng, N, REST_LENGTH)
-    right_rel_vel_rand = sample_rel_vel(rng, N)
-    right_rel_pos = np.where(has_right[:, None], right_rel_pos_rand, 0.0)
-    right_rel_vel = np.where(has_right[:, None], right_rel_vel_rand, 0.0)
+    N = len(bead_ids)
 
     # Compute physics
     print("Computing per-bead physics...")
@@ -254,8 +428,10 @@ def generate(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate volume-sampled GNN training data")
-    parser.add_argument("--n_samples", type=int, default=1_000_000)
+    parser.add_argument("--n_samples", type=int, default=2_000_000)
     parser.add_argument("--output", type=str, default="volume_data.npz")
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--near_zero_scale", type=float, default=0.05,
+                        help="Gaussian scale for near-zero samples (fraction of full range)")
     args = parser.parse_args()
     generate(args)

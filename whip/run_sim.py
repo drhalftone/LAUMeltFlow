@@ -35,7 +35,17 @@ anchor = state.pos[0].copy()
 node_sizes = 3 + 12 * (state.mass / state.mass.max())
 
 # --- Set up figure ---
-fig, ax_sim = plt.subplots(1, 1, figsize=(8, 8))
+#fig, ax_sim = plt.subplots(1, 1, figsize=(8, 8))
+
+fig, (ax_sim, ax_vel) = plt.subplots(1, 2, figsize=(14, 8))
+
+# Velocity plot setup
+ax_vel.set_xlabel("Time (s)")
+ax_vel.set_ylabel("Tip Speed (m/s)")
+ax_vel.set_title("Tip Velocity")
+ax_vel.grid(True, alpha=0.3)
+tip_times, tip_speeds = [], []
+(vel_plot,) = ax_vel.plot([], [], "r-", linewidth=1.5)
 
 # Simulation axes — anchor centered
 ax_sim.set_xlim(-TOTAL_LENGTH * 1.2, TOTAL_LENGTH * 1.2)
@@ -104,9 +114,16 @@ def update(frame):
 
     # Info text
     tip_speed = np.linalg.norm(state.vel[-1])
+    
+    tip_times.append(sim_time)
+    tip_speeds.append(tip_speed)
+    vel_plot.set_data(tip_times, tip_speeds)
+    ax_vel.set_xlim(0, max(tip_times) + 0.01)
+    ax_vel.set_ylim(0, max(tip_speeds) * 1.1 + 0.1)
+    
     time_text.set_text(f"t = {sim_time:.3f} s\ntip: {tip_speed:.1f} m/s")
 
-    return lines + [scatter, anchor_plot, trail_plot, time_text]
+    return lines + [scatter, anchor_plot, trail_plot, time_text, vel_plot]
 
 
 anim = animation.FuncAnimation(fig, update, interval=30, blit=False, cache_frame_data=False)

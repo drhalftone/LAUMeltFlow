@@ -1,4 +1,4 @@
-@echo off
+echo off
 REM Test trained MLP on all simulation configurations
 
 setlocal EnableDelayedExpansion
@@ -7,8 +7,8 @@ echo ==========================================
 echo Testing MLP on All Configurations
 echo ==========================================
 
-REM Activate venv
-call venv\Scripts\activate
+REM Activate .lmf virtual environment
+call .lmf\Scripts\activate
 
 set MODEL=models\flux_mlp_multiphase.pt
 

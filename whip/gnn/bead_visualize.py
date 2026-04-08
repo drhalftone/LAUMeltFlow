@@ -1,12 +1,16 @@
-"""Live side-by-side visualization: ground truth physics vs BeadGNN.
+"""Live side-by-side visualization: ground truth physics vs GNN.
 
 Shows two bead chains evolving simultaneously:
   1. Ground truth: Python physics (forces + symplectic Euler, no SHAKE)
-  2. GNN: BeadGNN replaces physics entirely (step_chain)
+  2. GNN: model replaces physics entirely (step_chain)
+
+Supports both the original BeadGNN (MLP) and the new BeadMPGNN.
 
 Usage:
     python bead_visualize.py
     python bead_visualize.py --model_path outputs/bead_best.pt --n_steps 30000
+    python bead_visualize.py --model_path outputs/mpgnn_best.pt --model_type mpgnn
+    python bead_visualize.py --model_path outputs/mpgnn_best.pt --model_type mpgnn --n_beads 24
 """
 
 import os
@@ -18,32 +22,47 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
 from bead_model import BeadGNN
+from bead_mpgnn import BeadMPGNN
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from simulation import create_chain, compute_forces, compute_energy
 
 
-def load_model(model_path, device):
-    """Load trained BeadGNN from checkpoint."""
+def load_model(model_path, model_type, device):
+    """Load trained model from checkpoint.
+
+    Args:
+        model_type: 'mlp' for BeadGNN, 'mpgnn' for BeadMPGNN
+    """
     ckpt = torch.load(model_path, map_location=device, weights_only=False)
     args = ckpt["args"]
-    model = BeadGNN(
-        input_dim=16, output_dim=4,
-        hidden_dim=args["hidden_dim"],
-        n_layers=args["n_layers"],
-    ).to(device)
-    model.load_state_dict(ckpt["model_state_dict"])
-    model.eval()
 
-    # Normalization stats
-    x_mean = ckpt["x_mean"].to(device)
-    x_std = ckpt["x_std"].to(device)
-    y_mean = ckpt["y_mean"].to(device)
-    y_std = ckpt["y_std"].to(device)
-
-    print(f"Loaded BeadGNN (epoch {ckpt['epoch']}, val_loss={ckpt['val_loss']:.2e}, "
-          f"hidden={args['hidden_dim']}, layers={args['n_layers']})")
-    return model, x_mean, x_std, y_mean, y_std
+    if model_type == "mpgnn":
+        model = BeadMPGNN(
+            node_dim=4, edge_dim=6, output_dim=4,
+            hidden_dim=args["hidden_dim"],
+            n_message_passes=args.get("n_message_passes", 1),
+        ).to(device)
+        model.load_state_dict(ckpt["model_state_dict"])
+        model.eval()
+        print(f"Loaded BeadMPGNN (epoch {ckpt['epoch']}, val_loss={ckpt['val_loss']:.2e}, "
+              f"hidden={args['hidden_dim']}, K={args.get('n_message_passes', 1)})")
+        return model, None, None, None, None  # normalization is in model buffers
+    else:
+        model = BeadGNN(
+            input_dim=16, output_dim=4,
+            hidden_dim=args["hidden_dim"],
+            n_layers=args["n_layers"],
+        ).to(device)
+        model.load_state_dict(ckpt["model_state_dict"])
+        model.eval()
+        x_mean = ckpt["x_mean"].to(device)
+        x_std = ckpt["x_std"].to(device)
+        y_mean = ckpt["y_mean"].to(device)
+        y_std = ckpt["y_std"].to(device)
+        print(f"Loaded BeadGNN (epoch {ckpt['epoch']}, val_loss={ckpt['val_loss']:.2e}, "
+              f"hidden={args['hidden_dim']}, layers={args['n_layers']})")
+        return model, x_mean, x_std, y_mean, y_std
 
 
 def step_ground_truth(state, dt, gravity):
@@ -56,10 +75,8 @@ def step_ground_truth(state, dt, gravity):
     state.pos += dt * state.vel
 
 
-def step_gnn(state, dt, model, x_mean, x_std, y_mean, y_std, device):
-    """One timestep: BeadGNN replaces all physics."""
-    N = len(state.mass)
-
+def step_gnn(state, dt, model, x_mean, x_std, y_mean, y_std, device, model_type="mlp"):
+    """One timestep: GNN replaces all physics."""
     pos = torch.from_numpy(state.pos).float().to(device)
     vel = torch.from_numpy(state.vel).float().to(device)
     mass = torch.from_numpy(state.mass).float().to(device)
@@ -67,45 +84,52 @@ def step_gnn(state, dt, model, x_mean, x_std, y_mean, y_std, device):
     edges = torch.from_numpy(state.edges).long().to(device)
     rest_lengths = torch.from_numpy(state.rest_lengths).float().to(device)
 
-    # Build relative features (same logic as BeadGNN.step_chain)
-    left_idx = torch.full((N,), -1, dtype=torch.long, device=device)
-    right_idx = torch.full((N,), -1, dtype=torch.long, device=device)
-    left_rest = torch.zeros(N, device=device)
-    right_rest = torch.zeros(N, device=device)
+    if model_type == "mpgnn":
+        # MPGNN handles everything in step_chain (including normalization)
+        with torch.no_grad():
+            pos_new, vel_new = model.step_chain(pos, vel, mass, is_fixed, edges, rest_lengths)
+        state.pos = pos_new.cpu().numpy()
+        state.vel = vel_new.cpu().numpy()
+    else:
+        # Original BeadGNN: manually build features and normalize
+        N = len(state.mass)
+        left_idx = torch.full((N,), -1, dtype=torch.long, device=device)
+        right_idx = torch.full((N,), -1, dtype=torch.long, device=device)
+        left_rest = torch.zeros(N, device=device)
+        right_rest = torch.zeros(N, device=device)
 
-    for e, (i, j) in enumerate(edges):
-        left_idx[j] = i
-        right_idx[i] = j
-        left_rest[j] = rest_lengths[e]
-        right_rest[i] = rest_lengths[e]
+        for e, (i, j) in enumerate(edges):
+            left_idx[j] = i
+            right_idx[i] = j
+            left_rest[j] = rest_lengths[e]
+            right_rest[i] = rest_lengths[e]
 
-    has_left = left_idx >= 0
-    has_right = right_idx >= 0
+        has_left = left_idx >= 0
+        has_right = right_idx >= 0
 
-    safe_left = left_idx.clamp(min=0)
-    l_dpos = torch.where(has_left.unsqueeze(1), pos[safe_left] - pos, torch.zeros_like(pos))
-    l_dvel = torch.where(has_left.unsqueeze(1), vel[safe_left] - vel, torch.zeros_like(vel))
-    l_mass = torch.where(has_left, mass[safe_left], torch.zeros_like(mass))
+        safe_left = left_idx.clamp(min=0)
+        l_dpos = torch.where(has_left.unsqueeze(1), pos[safe_left] - pos, torch.zeros_like(pos))
+        l_dvel = torch.where(has_left.unsqueeze(1), vel[safe_left] - vel, torch.zeros_like(vel))
+        l_mass = torch.where(has_left, mass[safe_left], torch.zeros_like(mass))
 
-    safe_right = right_idx.clamp(min=0)
-    r_dpos = torch.where(has_right.unsqueeze(1), pos[safe_right] - pos, torch.zeros_like(pos))
-    r_dvel = torch.where(has_right.unsqueeze(1), vel[safe_right] - vel, torch.zeros_like(vel))
-    r_mass = torch.where(has_right, mass[safe_right], torch.zeros_like(mass))
+        safe_right = right_idx.clamp(min=0)
+        r_dpos = torch.where(has_right.unsqueeze(1), pos[safe_right] - pos, torch.zeros_like(pos))
+        r_dvel = torch.where(has_right.unsqueeze(1), vel[safe_right] - vel, torch.zeros_like(vel))
+        r_mass = torch.where(has_right, mass[safe_right], torch.zeros_like(mass))
 
-    x = torch.cat([
-        vel, mass.unsqueeze(1), is_fixed.float().unsqueeze(1),
-        l_dpos, l_dvel, l_mass.unsqueeze(1), left_rest.unsqueeze(1),
-        r_dpos, r_dvel, r_mass.unsqueeze(1), right_rest.unsqueeze(1),
-    ], dim=1)  # (N, 16)
+        x = torch.cat([
+            vel, mass.unsqueeze(1), is_fixed.float().unsqueeze(1),
+            l_dpos, l_dvel, l_mass.unsqueeze(1), left_rest.unsqueeze(1),
+            r_dpos, r_dvel, r_mass.unsqueeze(1), right_rest.unsqueeze(1),
+        ], dim=1)  # (N, 16)
 
-    # Normalize, predict, denormalize
-    x_norm = (x - x_mean) / x_std
-    with torch.no_grad():
-        delta_norm = model(x_norm)
-    delta = delta_norm * y_std + y_mean  # (N, 4)
+        x_norm = (x - x_mean) / x_std
+        with torch.no_grad():
+            delta_norm = model(x_norm)
+        delta = delta_norm * y_std + y_mean
 
-    state.pos += delta[:, :2].cpu().numpy()
-    state.vel += delta[:, 2:].cpu().numpy()
+        state.pos += delta[:, :2].cpu().numpy()
+        state.vel += delta[:, 2:].cpu().numpy()
 
 
 def compute_rod_errors(state):
@@ -121,12 +145,13 @@ def compute_rod_errors(state):
 
 def run_and_visualize(args):
     device = torch.device("cpu")
-    n_beads = 16
+    n_beads = args.n_beads
 
-    model, x_mean, x_std, y_mean, y_std = load_model(args.model_path, device)
+    model, x_mean, x_std, y_mean, y_std = load_model(
+        args.model_path, args.model_type, device)
 
     params = dict(
-        n_nodes=16, total_length=2.0, total_mass=0.5,
+        n_nodes=n_beads, total_length=2.0, total_mass=0.5,
         stiffness=1e4, damping=0.5, drag=0.02, taper_ratio=10.0,
     )
     dt = 0.0001
@@ -136,6 +161,22 @@ def run_and_visualize(args):
     state_gt = create_chain(**params)
     state_gnn = create_chain(**params)
     anchor = state_gt.pos[0].copy()
+
+    # Rotate initial chain around anchor by --init_angle degrees
+    # 0 = horizontal (default), -90 = pointing straight down, 90 = straight up
+    if args.init_angle != 0.0:
+        theta = np.deg2rad(args.init_angle)
+        c, s = np.cos(theta), np.sin(theta)
+        R = np.array([[c, -s], [s, c]])
+        for state in (state_gt, state_gnn):
+            rel = state.pos - anchor
+            state.pos = anchor + rel @ R.T
+
+    # Apply initial velocity to all non-fixed beads
+    if args.init_vx != 0.0 or args.init_vy != 0.0:
+        v0 = np.array([args.init_vx, args.init_vy])
+        for state in (state_gt, state_gnn):
+            state.vel[~state.fixed] = v0
 
     n_frames = args.n_steps // steps_per_frame
 
@@ -159,7 +200,7 @@ def run_and_visualize(args):
         state_gt.vel[0] = 0.0
 
         # GNN
-        step_gnn(state_gnn, dt, model, x_mean, x_std, y_mean, y_std, device)
+        step_gnn(state_gnn, dt, model, x_mean, x_std, y_mean, y_std, device, args.model_type)
         state_gnn.pos[0] = anchor
         state_gnn.vel[0] = 0.0
 
@@ -195,9 +236,10 @@ def run_and_visualize(args):
     x_center = (x_min + x_max) / 2
     y_center = (y_min + y_max) / 2
 
+    gnn_title = "BeadMPGNN" if args.model_type == "mpgnn" else "BeadGNN"
     for ax, title, color in [
-        (ax_gt, "Ground Truth (stiff springs)", "black"),
-        (ax_gnn, "BeadGNN", "red"),
+        (ax_gt, f"Ground Truth ({n_beads} beads)", "black"),
+        (ax_gnn, f"{gnn_title} ({n_beads} beads)", "red"),
     ]:
         ax.set_xlim(x_center - max_range / 2, x_center + max_range / 2)
         ax.set_ylim(y_center - max_range / 2, y_center + max_range / 2)
@@ -290,6 +332,17 @@ if __name__ == "__main__":
                         help="Milliseconds between animation frames (~30fps)")
     parser.add_argument("--save", action="store_true",
                         help="Save as GIF instead of showing live")
+    parser.add_argument("--model_type", type=str, default="mlp",
+                        choices=["mlp", "mpgnn"],
+                        help="Model type: 'mlp' for BeadGNN, 'mpgnn' for BeadMPGNN")
+    parser.add_argument("--n_beads", type=int, default=16,
+                        help="Number of beads (MPGNN supports any N)")
+    parser.add_argument("--init_angle", type=float, default=0.0,
+                        help="Initial chain angle in degrees (0=horizontal, -90=straight down)")
+    parser.add_argument("--init_vx", type=float, default=0.0,
+                        help="Initial x-velocity for all non-fixed beads (m/s)")
+    parser.add_argument("--init_vy", type=float, default=0.0,
+                        help="Initial y-velocity for all non-fixed beads (m/s)")
     args = parser.parse_args()
 
     run_and_visualize(args)

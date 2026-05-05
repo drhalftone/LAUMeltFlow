@@ -177,6 +177,9 @@ def train(args):
         import matplotlib
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
+        plt.rcParams.update({'font.size': 16, 'axes.titlesize': 18,
+                             'axes.labelsize': 16, 'xtick.labelsize': 14,
+                             'ytick.labelsize': 14, 'legend.fontsize': 14})
 
         fig, axes = plt.subplots(1, 2, figsize=(12, 5))
 

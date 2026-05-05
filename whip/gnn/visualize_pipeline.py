@@ -5,12 +5,13 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib.patches import FancyArrowPatch, FancyBboxPatch
 
+plt.rcParams.update({'font.size': 14})
 fig, axes = plt.subplots(2, 3, figsize=(18, 11))
-fig.suptitle("generate_volume_data.py — Pipeline Visualization", fontsize=16, fontweight="bold", y=0.98)
+fig.suptitle("generate_volume_data.py — Pipeline Visualization", fontsize=24, fontweight="bold", y=0.98)
 
 # ─── Panel 1: The bead chain (the physical system) ───
 ax = axes[0, 0]
-ax.set_title("1. The Physical System", fontsize=12, fontweight="bold")
+ax.set_title("1. The Physical System", fontsize=18, fontweight="bold")
 ax.set_xlim(-0.3, 2.3)
 ax.set_ylim(-0.5, 0.5)
 ax.set_aspect("equal")
@@ -32,31 +33,31 @@ for i in range(n_beads):
     ax.scatter(x_pos[i], 0, s=sizes[i], c=[color], zorder=5, edgecolors='black', linewidth=0.5)
 
 ax.annotate("Fixed\nanchor", (x_pos[0], 0), (x_pos[0], 0.3),
-            ha='center', fontsize=8, color='red',
+            ha='center', fontsize=12, color='red',
             arrowprops=dict(arrowstyle='->', color='red'))
 ax.annotate("Light tip", (x_pos[-1], 0), (x_pos[-1], 0.3),
-            ha='center', fontsize=8, color='gray',
+            ha='center', fontsize=12, color='gray',
             arrowprops=dict(arrowstyle='->', color='gray'))
 ax.text(1.0, -0.35, "16 beads, tapered mass (heavy → light)\nconnected by spring-rod elements",
-        ha='center', fontsize=9, style='italic')
+        ha='center', fontsize=14, style='italic')
 
 # ─── Panel 2: Random sampling (one bead's perspective) ───
 ax = axes[0, 1]
-ax.set_title("2. Sample Random Scenarios", fontsize=12, fontweight="bold")
+ax.set_title("2. Sample Random Scenarios", fontsize=18, fontweight="bold")
 ax.set_xlim(-0.25, 0.25)
 ax.set_ylim(-0.25, 0.25)
 ax.set_aspect("equal")
 
 # The bead at center
 ax.scatter(0, 0, s=200, c='steelblue', zorder=5, edgecolors='black', linewidth=1.5)
-ax.text(0, -0.02, "self", ha='center', va='center', fontsize=8, fontweight='bold', color='white')
+ax.text(0, -0.02, "self", ha='center', va='center', fontsize=12, fontweight='bold', color='white')
 
 # Velocity arrow
 rng = np.random.default_rng(42)
 vx, vy = 0.08, -0.05
 ax.annotate("", xy=(vx, vy), xytext=(0, 0),
             arrowprops=dict(arrowstyle='->', color='orange', lw=2))
-ax.text(vx + 0.02, vy, "vel", fontsize=8, color='orange', fontweight='bold')
+ax.text(vx + 0.02, vy, "vel", fontsize=12, color='orange', fontweight='bold')
 
 # Left neighbor — polar sampling ring
 rest = 0.1333
@@ -79,7 +80,7 @@ for _ in range(8):
     ax.scatter(lx, ly, s=50, c='green', alpha=0.5, zorder=4)
 
 ax.scatter(-rest, 0, s=120, c='green', zorder=5, edgecolors='black', linewidth=1)
-ax.text(-rest, 0.035, "left\nneighbor", ha='center', fontsize=7, color='green')
+ax.text(-rest, 0.035, "left\nneighbor", ha='center', fontsize=11, color='green')
 
 # Right neighbor — polar sampling ring
 ax.plot(r_inner * np.cos(theta_ring) + rest, r_inner * np.sin(theta_ring), 'm--', alpha=0.4, linewidth=0.8)
@@ -93,15 +94,15 @@ for _ in range(8):
     ax.scatter(rx, ry, s=50, c='purple', alpha=0.5, zorder=4)
 
 ax.scatter(rest, 0, s=120, c='purple', zorder=5, edgecolors='black', linewidth=1)
-ax.text(rest, 0.035, "right\nneighbor", ha='center', fontsize=7, color='purple')
+ax.text(rest, 0.035, "right\nneighbor", ha='center', fontsize=11, color='purple')
 
 ax.text(0, -0.22, "Polar sampling: r ≈ rest length, θ uniform\n1M independent random scenarios",
-        ha='center', fontsize=8, style='italic')
+        ha='center', fontsize=12, style='italic')
 ax.axis("off")
 
 # ─── Panel 3: Force computation ───
 ax = axes[0, 2]
-ax.set_title("3. Compute Forces (per sample)", fontsize=12, fontweight="bold")
+ax.set_title("3. Compute Forces (per sample)", fontsize=18, fontweight="bold")
 ax.set_xlim(-0.5, 0.5)
 ax.set_ylim(-0.7, 0.5)
 ax.axis("off")
@@ -123,7 +124,7 @@ for (dx, dy), label, color in forces:
     ax.annotate("", xy=(dx, dy), xytext=(0, 0),
                 arrowprops=dict(arrowstyle='->', color=color, lw=2.5, alpha=0.7))
     offset = 0.03 if dy > 0 else -0.04
-    ax.text(dx + 0.02, dy + offset, label, fontsize=7, color=color, fontweight='bold')
+    ax.text(dx + 0.02, dy + offset, label, fontsize=11, color=color, fontweight='bold')
 
 # Equations
 eq_y = -0.40
@@ -134,11 +135,11 @@ eqs = [
     "F_drag  = -b·v",
 ]
 for i, eq in enumerate(eqs):
-    ax.text(0, eq_y - i * 0.07, eq, ha='center', fontsize=8, family='monospace')
+    ax.text(0, eq_y - i * 0.07, eq, ha='center', fontsize=12, family='monospace')
 
 # ─── Panel 4: Symplectic Euler integration ───
 ax = axes[1, 0]
-ax.set_title("4. Symplectic Euler Step", fontsize=12, fontweight="bold")
+ax.set_title("4. Symplectic Euler Step", fontsize=18, fontweight="bold")
 ax.set_xlim(-0.5, 0.5)
 ax.set_ylim(-0.6, 0.5)
 ax.axis("off")
@@ -156,7 +157,7 @@ for y, text, color in steps:
                           boxstyle="round,pad=0.02",
                           facecolor=color, alpha=0.15, edgecolor=color, linewidth=1.5)
     ax.add_patch(bbox)
-    ax.text(0, y, text, ha='center', va='center', fontsize=9, family='monospace',
+    ax.text(0, y, text, ha='center', va='center', fontsize=14, family='monospace',
             fontweight='bold', color=color)
 
 # Arrows between steps
@@ -165,47 +166,47 @@ for i in range(len(steps) - 1):
                 arrowprops=dict(arrowstyle='->', color='gray', lw=1.5))
 
 ax.text(0, -0.50, "dt = 0.0001s — one tiny step",
-        ha='center', fontsize=9, style='italic', color='gray')
+        ha='center', fontsize=14, style='italic', color='gray')
 
 # ─── Panel 5: Input/Output format ───
 ax = axes[1, 1]
-ax.set_title("5. Pack Input (X) and Target (Y)", fontsize=12, fontweight="bold")
-ax.set_xlim(-0.5, 0.5)
-ax.set_ylim(-0.7, 0.5)
+ax.set_title("5. Pack Input (X) and Target (Y)", fontsize=18, fontweight="bold")
+ax.set_xlim(-0.6, 0.6)
+ax.set_ylim(-0.85, 0.55)
 ax.axis("off")
 
 # Input X
-ax.text(0, 0.42, "Input X — 16 features per sample", ha='center', fontsize=9, fontweight='bold')
+ax.text(0, 0.48, "Input X — 16 features per sample", ha='center', fontsize=14, fontweight='bold')
 
 sections = [
-    (0.28, "Self (4)", "steelblue", "vel_x, vel_y, mass, is_fixed"),
-    (0.12, "Left neighbor (6)", "green", "dpos_x, dpos_y, dvel_x, dvel_y, mass, L₀"),
-    (-0.04, "Right neighbor (6)", "purple", "dpos_x, dpos_y, dvel_x, dvel_y, mass, L₀"),
+    (0.30, "Self (4)", "steelblue", "vel_x, vel_y, mass, is_fixed"),
+    (0.10, "Left neighbor (6)", "green", "dpos_x, dpos_y, dvel_x,\ndvel_y, mass, L₀"),
+    (-0.14, "Right neighbor (6)", "purple", "dpos_x, dpos_y, dvel_x,\ndvel_y, mass, L₀"),
 ]
 
 for y, title, color, fields in sections:
-    bbox = FancyBboxPatch((-0.45, y - 0.05), 0.90, 0.12,
+    bbox = FancyBboxPatch((-0.55, y - 0.07), 1.10, 0.16,
                           boxstyle="round,pad=0.02",
                           facecolor=color, alpha=0.12, edgecolor=color, linewidth=1.5)
     ax.add_patch(bbox)
-    ax.text(-0.40, y + 0.01, title, fontsize=8, fontweight='bold', color=color, va='center')
-    ax.text(0.42, y + 0.01, fields, fontsize=7, ha='right', va='center', family='monospace')
+    ax.text(-0.50, y + 0.01, title, fontsize=12, fontweight='bold', color=color, va='center')
+    ax.text(0.52, y + 0.01, fields, fontsize=11, ha='right', va='center', family='monospace')
 
 # Target Y
-ax.text(0, -0.22, "Target Y — 4 values per sample", ha='center', fontsize=9, fontweight='bold')
-bbox = FancyBboxPatch((-0.45, -0.38), 0.90, 0.12,
+ax.text(0, -0.35, "Target Y — 4 values per sample", ha='center', fontsize=14, fontweight='bold')
+bbox = FancyBboxPatch((-0.55, -0.54), 1.10, 0.16,
                       boxstyle="round,pad=0.02",
                       facecolor='#FF9800', alpha=0.15, edgecolor='#FF9800', linewidth=1.5)
 ax.add_patch(bbox)
-ax.text(0, -0.32, "Δpos_x,  Δpos_y,  Δvel_x,  Δvel_y",
-        ha='center', fontsize=9, family='monospace', fontweight='bold', color='#E65100')
+ax.text(0, -0.46, "Δpos_x,  Δpos_y,  Δvel_x,  Δvel_y",
+        ha='center', fontsize=14, family='monospace', fontweight='bold', color='#E65100')
 
-ax.text(0, -0.55, "Shape: X=(1M, 16)  Y=(1M, 4)",
-        ha='center', fontsize=9, style='italic', color='gray')
+ax.text(0, -0.75, "Shape: X=(1M, 16)  Y=(1M, 4)",
+        ha='center', fontsize=14, style='italic', color='gray')
 
 # ─── Panel 6: Volume vs trajectory comparison ───
 ax = axes[1, 2]
-ax.set_title("6. Why Volume Sampling?", fontsize=12, fontweight="bold")
+ax.set_title("6. Why Volume Sampling?", fontsize=18, fontweight="bold")
 ax.set_xlim(-3, 3)
 ax.set_ylim(-3, 3)
 ax.set_aspect("equal")
@@ -221,19 +222,19 @@ for i in range(5):
     ty = np.clip(ty, -2.8, 2.8)
     ax.plot(tx, ty, 'b-', alpha=0.3, linewidth=1)
 
-ax.text(-1.5, 2.5, "Trajectory data\n(thin paths)", fontsize=9, color='blue',
+ax.text(-1.5, 2.5, "Trajectory data\n(thin paths)", fontsize=14, color='blue',
         fontweight='bold', style='italic')
 
 # Volume data — scattered points
 vx = rng.uniform(-2.5, 2.5, 300)
 vy = rng.uniform(-2.5, 2.5, 300)
 ax.scatter(vx, vy, s=8, c='red', alpha=0.3, zorder=3)
-ax.text(1.0, -2.5, "Volume data\n(fills space)", fontsize=9, color='red',
+ax.text(1.0, -2.5, "Volume data\n(fills space)", fontsize=14, color='red',
         fontweight='bold', style='italic')
 
-ax.set_xlabel("State dimension 1", fontsize=8)
-ax.set_ylabel("State dimension 2", fontsize=8)
-ax.tick_params(labelsize=7)
+ax.set_xlabel("State dimension 1", fontsize=12)
+ax.set_ylabel("State dimension 2", fontsize=12)
+ax.tick_params(labelsize=11)
 ax.grid(True, alpha=0.2)
 
 plt.tight_layout(rect=[0, 0, 1, 0.95])

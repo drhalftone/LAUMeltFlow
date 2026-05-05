@@ -217,7 +217,16 @@ def run_and_visualize(args):
     n_frames = len(frames_gt)
 
     # --- Animation ---
-    fig = plt.figure(figsize=(14, 8))
+    plt.rcParams.update({
+        'font.size': 16,
+        'axes.titlesize': 20,
+        'axes.labelsize': 16,
+        'xtick.labelsize': 14,
+        'ytick.labelsize': 14,
+        'legend.fontsize': 14,
+    })
+
+    fig = plt.figure(figsize=(18, 10))
     gs = fig.add_gridspec(2, 2, width_ratios=[1, 1], height_ratios=[3, 1],
                           hspace=0.3, wspace=0.3)
 
@@ -244,7 +253,7 @@ def run_and_visualize(args):
         ax.set_xlim(x_center - max_range / 2, x_center + max_range / 2)
         ax.set_ylim(y_center - max_range / 2, y_center + max_range / 2)
         ax.set_aspect("equal")
-        ax.set_title(title, color=color, fontweight="bold")
+        ax.set_title(title, color=color, fontweight="bold", fontsize=22)
         ax.grid(True, alpha=0.3)
 
     edges = np.array([[i, i + 1] for i in range(n_beads - 1)])
@@ -252,29 +261,29 @@ def run_and_visualize(args):
     def make_chain_artists(ax, color):
         lines = []
         for _ in edges:
-            (line,) = ax.plot([], [], color=color, linewidth=2, alpha=0.7)
+            (line,) = ax.plot([], [], color=color, linewidth=3, alpha=0.7)
             lines.append(line)
-        (nodes,) = ax.plot([], [], "o", color=color, markersize=5, zorder=5)
-        (anchor_dot,) = ax.plot([], [], "rs", markersize=8, zorder=6)
+        (nodes,) = ax.plot([], [], "o", color=color, markersize=7, zorder=5)
+        (anchor_dot,) = ax.plot([], [], "rs", markersize=10, zorder=6)
         return lines, nodes, anchor_dot
 
     gt_lines, gt_nodes, gt_anchor = make_chain_artists(ax_gt, "black")
     gnn_lines, gnn_nodes, gnn_anchor = make_chain_artists(ax_gnn, "red")
 
     time_text = ax_gt.text(0.02, 0.98, "", transform=ax_gt.transAxes,
-                           va="top", fontsize=10)
-    rod_text_gt = ax_gt.text(0.02, 0.90, "", transform=ax_gt.transAxes,
-                             va="top", fontsize=9, color="black")
+                           va="top", fontsize=18)
+    rod_text_gt = ax_gt.text(0.02, 0.88, "", transform=ax_gt.transAxes,
+                             va="top", fontsize=16, color="black")
     rod_text_gnn = ax_gnn.text(0.02, 0.98, "", transform=ax_gnn.transAxes,
-                               va="top", fontsize=9, color="red")
+                               va="top", fontsize=16, color="red")
 
     # Metrics plot
-    ax_metric.set_xlabel("Time (s)")
-    ax_metric.set_ylabel("Position Error vs GT (m)")
-    ax_metric.set_title("Trajectory Error (mean over beads)")
+    ax_metric.set_xlabel("Time (s)", fontsize=18)
+    ax_metric.set_ylabel("Position Error vs GT (m)", fontsize=18)
+    ax_metric.set_title("Trajectory Error (mean over beads)", fontsize=20)
     ax_metric.grid(True, alpha=0.3)
-    (err_line,) = ax_metric.plot([], [], "r-", label="GNN vs GT", alpha=0.8)
-    ax_metric.legend(loc="upper left")
+    (err_line,) = ax_metric.plot([], [], "r-", linewidth=2.5, label="GNN vs GT", alpha=0.8)
+    ax_metric.legend(loc="upper left", fontsize=16)
 
     # Pre-compute position errors
     pos_err = [np.linalg.norm(np.array(frames_gnn[i]) - np.array(frames_gt[i]),

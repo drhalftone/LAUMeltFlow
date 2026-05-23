@@ -37,3 +37,7 @@ models/
 
 # Windows null device artifact
 nul
+
+# Claude Code local config — never commit
+.claude/
+**/.claude/

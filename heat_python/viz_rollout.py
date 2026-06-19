@@ -33,7 +33,7 @@ def _depth_axis(case_dir="heat_2026-04-11_1837/examples/aw1", n=None) -> np.ndar
     return (np.arange(n) + 0.5) * dx * 1e3      # mm
 
 
-def static_heatmap(time, T_gt, T_pred, x_mm, out_png):
+def static_heatmap(time, T_gt, T_pred, x_mm, out_png, label=""):
     gt = T_gt[:, 1:-1]                            # interior (S, n)
     pr = T_pred[:, 1:-1]
     err = np.abs(pr - gt)
@@ -50,14 +50,17 @@ def static_heatmap(time, T_gt, T_pred, x_mm, out_png):
         ax.set_xlabel("position x [mm]  (hot wall at right)")
         fig.colorbar(im, ax=ax, label="T [K]" if vm else "|ΔT| [K]")
     axes[0].set_ylabel("time [s]")
-    fig.suptitle("Heat-shield rollout: GNN vs solver (space-time temperature)")
+    title = (f"{label}: rollout vs solver (space-time temperature)" if label
+             else "Heat-shield rollout: GNN vs solver (space-time temperature)")
+    fig.suptitle(title)
     fig.tight_layout()
     fig.savefig(out_png, dpi=130)
     plt.close(fig)
     print(f"  saved {out_png}")
 
 
-def profile_animation(time, T_gt, T_pred, x_mm, out_gif, n_frames=160, fps=20):
+def profile_animation(time, T_gt, T_pred, x_mm, out_gif, n_frames=160, fps=20,
+                      label=""):
     gt = T_gt[:, 1:-1]
     pr = T_pred[:, 1:-1]
     S = gt.shape[0]
@@ -71,6 +74,8 @@ def profile_animation(time, T_gt, T_pred, x_mm, out_gif, n_frames=160, fps=20):
     ax.set_xlabel("position x [mm]  (hot wall at right)")
     ax.set_ylabel("temperature [K]")
     ax.legend(loc="upper left")
+    if label:
+        ax.set_title(label)
     txt = ax.text(0.02, 0.90, "", transform=ax.transAxes)
 
     def update(k):
@@ -95,9 +100,9 @@ def main(args):
     out = Path(args.outdir)
     out.mkdir(parents=True, exist_ok=True)
     static_heatmap(d["time"], d["T_gt"], d["T_pred"], x_mm,
-                   out / "rollout_spacetime.png")
+                   out / "rollout_spacetime.png", label=args.label)
     profile_animation(d["time"], d["T_gt"], d["T_pred"], x_mm,
-                      out / "rollout_profile.gif")
+                      out / "rollout_profile.gif", label=args.label)
 
 
 if __name__ == "__main__":
@@ -106,4 +111,7 @@ if __name__ == "__main__":
     p.add_argument("--rollout", default="heat_python/data/rollout_aw1.npz")
     p.add_argument("--outdir", default="heat_python/figs")
     p.add_argument("--case-dir", default="heat_2026-04-11_1837/examples/aw1")
+    p.add_argument("--label", default="",
+                   help="title prefix identifying the case/model, e.g. "
+                        "'aw2 gas surrogate (conservative flux-form)'")
     main(p.parse_args())

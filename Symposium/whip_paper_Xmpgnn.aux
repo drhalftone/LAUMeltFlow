@@ -1,0 +1,61 @@
+\relax 
+\providecommand\hyper@newdestlabel[2]{}
+\providecommand\HyField@AuxAddToFields[1]{}
+\providecommand\HyField@AuxAddToCoFields[2]{}
+\citation{bathe1996finite}
+\citation{battaglia2016interaction}
+\citation{sanchez2020learning}
+\citation{pfaff2020learning}
+\citation{shivaditya2022gnn}
+\citation{hairer2006geometric}
+\citation{gilmer2017neural}
+\@writefile{toc}{\contentsline {section}{\numberline {I}Introduction}{1}{section.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {II}Background and Problem Formulation}{2}{section.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {II-A}}Bead Chain Physics}{2}{subsection.2.1}\protected@file@percent }
+\newlabel{eq:spring}{{1}{2}{Bead Chain Physics}{equation.1}{}}
+\newlabel{eq:symp_v}{{2}{2}{Bead Chain Physics}{equation.2}{}}
+\newlabel{eq:symp_x}{{3}{2}{Bead Chain Physics}{equation.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {II-B}}Graph Structure of the Problem}{2}{subsection.2.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {II-C}}Training Data: Why Sampling Strategy Matters}{2}{subsection.2.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {II-D}}Initial MLP Surrogate and Its Limitation}{2}{subsection.2.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {III}Method}{2}{section.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-A}}Message-Passing GNN Architecture}{2}{subsection.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-B}}Volume-Sampled Per-Bead Training Data}{3}{subsection.3.2}\protected@file@percent }
+\newlabel{fig:arch_mlp}{{1a}{3}{The shared MLP concatenates all 16 features into a single vector}{figure.caption.1}{}}
+\newlabel{sub@fig:arch_mlp}{{a}{3}{The shared MLP concatenates all 16 features into a single vector}{figure.caption.1}{}}
+\newlabel{fig:arch_mpgnn}{{1b}{3}{The BeadMPGNN encodes node and edge features separately, computes messages per edge, applies ghost masking for missing neighbors, and concatenates the results before the node update}{figure.caption.1}{}}
+\newlabel{sub@fig:arch_mpgnn}{{b}{3}{The BeadMPGNN encodes node and edge features separately, computes messages per edge, applies ghost masking for missing neighbors, and concatenates the results before the node update}{figure.caption.1}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Architecture comparison. (a) Shared MLP. (b) BeadMPGNN.}}{3}{figure.caption.1}\protected@file@percent }
+\providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
+\newlabel{fig:architecture}{{1}{3}{Architecture comparison. (a) Shared MLP. (b) BeadMPGNN}{figure.caption.1}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-C}}Training}{4}{subsection.3.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {IV}Results}{4}{section.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-A}}Side-by-Side Rollout}{4}{subsection.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-B}}Training Convergence}{4}{subsection.4.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-C}}Generalization to Unseen Chain Lengths}{4}{subsection.4.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-D}}Initial Condition Robustness}{4}{subsection.4.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {V}Discussion}{4}{section.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {V-A}}Why Message Passing Matters Here}{4}{subsection.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {V-B}}Limitations}{4}{subsection.5.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {V-B}0a}Rollout drift}{4}{paragraph.5.2.0.1}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Volume sampling pipeline for generating per-bead training data. (1) The physical system is a tapered chain of 16 beads connected by spring rod elements. (2) Each sample is a random scenario: one bead with left and right neighbors sampled in polar coordinates around rest length. (3) Forces on the central bead are computed analytically. (4) Symplectic Euler advances velocity then position. (5) Input and target arrays are packed. (6) Volume sampling fills the reachable state space uniformly, unlike trajectory data which traces thin paths.}}{5}{figure.caption.2}\protected@file@percent }
+\newlabel{fig:pipeline}{{2}{5}{Volume sampling pipeline for generating per-bead training data. (1) The physical system is a tapered chain of 16 beads connected by spring rod elements. (2) Each sample is a random scenario: one bead with left and right neighbors sampled in polar coordinates around rest length. (3) Forces on the central bead are computed analytically. (4) Symplectic Euler advances velocity then position. (5) Input and target arrays are packed. (6) Volume sampling fills the reachable state space uniformly, unlike trajectory data which traces thin paths}{figure.caption.2}{}}
+\@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {V-B}0b}Constraint satisfaction}{5}{paragraph.5.2.0.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {V-B}0c}Receptive field}{5}{paragraph.5.2.0.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{\numberline {\mbox  {V-B}0d}Domain specificity}{5}{paragraph.5.2.0.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {VI}Conclusion and Future Work}{5}{section.6}\protected@file@percent }
+\bibcite{bathe1996finite}{1}
+\bibcite{battaglia2016interaction}{2}
+\bibcite{sanchez2020learning}{3}
+\bibcite{pfaff2020learning}{4}
+\bibcite{shivaditya2022gnn}{5}
+\bibcite{hairer2006geometric}{6}
+\bibcite{gilmer2017neural}{7}
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Snapshots from a side-by-side rollout of the reference solver (left, black) and BeadMPGNN (right, red) on a 16-bead chain. The bottom panel of (c) shows mean position error over time. The GNN tracks the ground truth through all three phases of motion.}}{6}{figure.caption.3}\protected@file@percent }
+\newlabel{fig:snapshots}{{3}{6}{Snapshots from a side-by-side rollout of the reference solver (left, black) and BeadMPGNN (right, red) on a 16-bead chain. The bottom panel of (c) shows mean position error over time. The GNN tracks the ground truth through all three phases of motion}{figure.caption.3}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces BeadMPGNN training convergence. Left: train and validation MSE loss over 200 epochs on a log scale. Right: predicted versus true velocity delta $\Delta v_x$ on 200 validation samples.}}{6}{figure.caption.4}\protected@file@percent }
+\newlabel{fig:training}{{4}{6}{BeadMPGNN training convergence. Left: train and validation MSE loss over 200 epochs on a log scale. Right: predicted versus true velocity delta $\Delta v_x$ on 200 validation samples}{figure.caption.4}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces Generalization across chain lengths. Left: mean position error between MPGNN and reference over 20{,}000 timesteps, by chain length. Center: final position error at $t = 2$ s for each chain length. Right: maximum rod length violation. The model is trained on chains of 8 to 32 beads with random taper ratios, but specific chain lengths such as $N=14$ or $N=18$ are never seen as single-sample configurations during training.}}{6}{figure.caption.5}\protected@file@percent }
+\newlabel{fig:eval}{{5}{6}{Generalization across chain lengths. Left: mean position error between MPGNN and reference over 20{,}000 timesteps, by chain length. Center: final position error at $t = 2$ s for each chain length. Right: maximum rod length violation. The model is trained on chains of 8 to 32 beads with random taper ratios, but specific chain lengths such as $N=14$ or $N=18$ are never seen as single-sample configurations during training}{figure.caption.5}{}}
+\@writefile{toc}{\contentsline {section}{References}{6}{section*.7}\protected@file@percent }
+\gdef \@abspage@last{6}

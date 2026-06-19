@@ -1,0 +1,112 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{xcolor}
+\usepackage{hyperref}
+
+\definecolor{secblue}{RGB}{21,101,192}
+
+\newcommand{\sectitle}[1]{\vspace{1em}\noindent{\large\bfseries\color{secblue}#1}\vspace{0.3em}\hrule\vspace{0.5em}}
+
+\title{BeadMPGNN --- Full Forward Pass ($K=1$)}
+\author{Personal Reference}
+\date{}
+
+\begin{document}
+\maketitle
+
+For one bead $i$ with left neighbor $L$ and right neighbor $R$.
+
+\sectitle{1. Inputs}
+
+\begin{align}
+\mathbf{x}_{\text{node}} &= [v_x,\ v_y,\ m,\ \text{is\_fixed}] \in \mathbb{R}^{4} \\
+\mathbf{x}_{\text{edge}}^{L} &= [\Delta x,\ \Delta y,\ \Delta v_x,\ \Delta v_y,\ m_L,\ \ell_0] \in \mathbb{R}^{6} \\
+\mathbf{x}_{\text{edge}}^{R} &= [\Delta x,\ \Delta y,\ \Delta v_x,\ \Delta v_y,\ m_R,\ \ell_0] \in \mathbb{R}^{6}
+\end{align}
+
+where $\Delta$ quantities are relative to the neighbor (e.g.\ $\Delta x = x_{\text{neighbor}} - x_{\text{self}}$).
+
+\sectitle{2. Input Normalization}
+
+\begin{align}
+\hat{\mathbf{x}}_{\text{node}} &= \frac{\mathbf{x}_{\text{node}} - \boldsymbol{\mu}_{\text{node}}}{\boldsymbol{\sigma}_{\text{node}}} \\
+\hat{\mathbf{x}}_{\text{edge}} &= \frac{\mathbf{x}_{\text{edge}} - \boldsymbol{\mu}_{\text{edge}}}{\boldsymbol{\sigma}_{\text{edge}}}
+\end{align}
+
+$\boldsymbol{\mu}$ and $\boldsymbol{\sigma}$ are computed once from the training set and fixed during training (not learned).
+
+\sectitle{3. ResMLPBlock (used by all encoders)}
+
+Given input $\mathbf{z}$ with input dim $d_{\text{in}}$ and hidden dim $H = 64$:
+
+\begin{align}
+\mathbf{z}' &= W_{\text{proj}}\,\mathbf{z} + \mathbf{b}_{\text{proj}} &\quad W_{\text{proj}} &\in \mathbb{R}^{H \times d_{\text{in}}} \\
+\hat{\mathbf{z}} &= \text{LayerNorm}(\mathbf{z}') \\
+\mathbf{a} &= \text{GELU}\!\left(W_1\,\hat{\mathbf{z}} + \mathbf{b}_1\right) &\quad W_1 &\in \mathbb{R}^{2H \times H} \quad \text{(expand)} \\
+\mathbf{o} &= W_2\,\mathbf{a} + \mathbf{b}_2 &\quad W_2 &\in \mathbb{R}^{H \times 2H} \quad \text{(contract)} \\
+\text{output} &= \mathbf{z}' + \mathbf{o} & & \text{(residual connection)}
+\end{align}
+
+\sectitle{4. Node Encoder}
+
+\begin{equation}
+\mathbf{h}_{\text{self}} = \text{ResMLPBlock}(\hat{\mathbf{x}}_{\text{node}}) \qquad \mathbb{R}^{4} \to \mathbb{R}^{64}
+\end{equation}
+
+\sectitle{5. Edge Encoder (shared weights for L and R)}
+
+\begin{align}
+\mathbf{h}_{\text{edge}}^{L} &= \text{ResMLPBlock}(\hat{\mathbf{x}}_{\text{edge}}^{L}) \qquad \mathbb{R}^{6} \to \mathbb{R}^{64} \\
+\mathbf{h}_{\text{edge}}^{R} &= \text{ResMLPBlock}(\hat{\mathbf{x}}_{\text{edge}}^{R}) \qquad \mathbb{R}^{6} \to \mathbb{R}^{64} \quad \text{(same weights as L)}
+\end{align}
+
+\sectitle{6. Message MLP}
+
+\begin{align}
+\mathbf{m}_L &= \text{ResMLPBlock}(\mathbf{h}_{\text{edge}}^{L}) \qquad \mathbb{R}^{64} \to \mathbb{R}^{64} \\
+\mathbf{m}_R &= \text{ResMLPBlock}(\mathbf{h}_{\text{edge}}^{R}) \qquad \mathbb{R}^{64} \to \mathbb{R}^{64} \quad \text{(same weights as L)}
+\end{align}
+
+\sectitle{7. Ghost Masking}
+
+\begin{align}
+\mathbf{m}_L &\leftarrow \mathbb{1}_{\text{has\_left}} \cdot \mathbf{m}_L \qquad \text{(zeroed if no left neighbor)} \\
+\mathbf{m}_R &\leftarrow \mathbb{1}_{\text{has\_right}} \cdot \mathbf{m}_R \qquad \text{(zeroed if no right neighbor)}
+\end{align}
+
+If bead $i$ is the first bead (no left neighbor), $\mathbb{1}_{\text{has\_left}} = 0$ and the entire left message becomes $\mathbf{0} \in \mathbb{R}^{64}$. The network does not need to learn this; it is enforced structurally.
+
+\sectitle{8. Node Update MLP}
+
+\begin{align}
+\mathbf{c} &= [\mathbf{h}_{\text{self}}\ \|\ \mathbf{m}_L\ \|\ \mathbf{m}_R] \in \mathbb{R}^{192} \qquad \text{(concatenation)} \\
+\mathbf{h}_{\text{updated}} &= \text{ResMLPBlock}(\mathbf{c}) \qquad \mathbb{R}^{192} \to \mathbb{R}^{64}
+\end{align}
+
+\sectitle{9. Output Head}
+
+\begin{equation}
+\hat{\mathbf{y}} = W_{\text{out}}\,\text{LayerNorm}(\mathbf{h}_{\text{updated}}) + \mathbf{b}_{\text{out}} \qquad W_{\text{out}} \in \mathbb{R}^{4 \times 64}
+\end{equation}
+
+\sectitle{10. Output Denormalization}
+
+\begin{align}
+\mathbf{y} &= \hat{\mathbf{y}} \cdot \boldsymbol{\sigma}_y + \boldsymbol{\mu}_y \\
+\mathbf{y} &= [\Delta x,\ \Delta y,\ \Delta v_x,\ \Delta v_y] \in \mathbb{R}^{4}
+\end{align}
+
+\sectitle{11. State Update}
+
+\begin{align}
+\mathbf{pos}_{\text{new}} &= \mathbf{pos} + [\Delta x,\ \Delta y] \\
+\mathbf{vel}_{\text{new}} &= \mathbf{vel} + [\Delta v_x,\ \Delta v_y]
+\end{align}
+
+\vspace{1em}
+\hrule
+\vspace{0.5em}
+\noindent\textit{Total: 80,324 trainable parameters \quad|\quad Hidden dim $H = 64$ \quad|\quad Activation: GELU \quad|\quad $K=1$ message passing round}
+
+\end{document}

@@ -1,0 +1,295 @@
+% unofficial poster template for Trinity College Dublin
+% which is a fork of the unofficial University of Texas at Arlington Math Poster template:
+% which is a fork of the unofficial University of Lethbridge Poster template: https://www.overleaf.com/latex/templates/university-of-lethbridge-unofficial-poster-template/nddfzgvqvfwf
+% which is a fork of unofficial University of Alberta Poster template: 
+% which is a fork of Yale template: https://www.overleaf.com/latex/templates/yale-poster-template/rjpgqfgvsjcv
+% which is a fork of the UMich template https://www.overleaf.com/latex/templates/university-of-michigan-umich-poster-template/xpnqzzxwbjzc
+% which is fork of the MSU template https://www.overleaf.com/latex/templates/an-unofficial-poster-template-for-michigan-state-university/wnymbgpxnnwd
+% which is a fork of https://www.overleaf.com/latex/templates/an-unofficial-poster-template-for-new-york-university/krgqtqmzdqhg
+% which is a fork of https://github.com/anishathalye/gemini
+% also refer to https://github.com/k4rtik/uchicago-poster
+
+
+\documentclass[final]{beamer}
+
+% ====================
+% Packages
+% ====================
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{luainputenc}
+\usepackage{lmodern}
+\usepackage[size=custom, width=122,height=91, scale=1.2]{beamerposter}
+\usetheme{gemini}
+\usecolortheme{msu}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.14}
+\usepackage{anyfontsize}
+
+% ====================
+% Lengths
+% ====================
+
+% If you have N columns, choose \sepwidth and \colwidth such that
+% (N+1)*\sepwidth + N*\colwidth = \paperwidth
+\newlength{\sepwidth}
+\newlength{\colwidth}
+\setlength{\sepwidth}{0.025\paperwidth}
+\setlength{\colwidth}{0.3\paperwidth}
+
+\newcommand{\separatorcolumn}{\begin{column}{\sepwidth}\end{column}}
+
+% ====================
+% Title
+% ====================
+
+\title{Multiresolution Ensemble  Graph
+Learning for Phase Identification in Power
+Distribution Systems}
+
+\author{Mihir Malladi, Daniel L.~Lau, PhD., Yuan Liao, PhD.}
+% add following line if you have co-author(s)
+% Coauthor One$^{2}$, Coauthor Two$^{3}$
+
+%\institute[shortinst]{University of Kentucky}
+
+% ====================
+% Footer (optional)
+% ====================
+
+\footercontent{Department of Electrical and Computer Engineering \hfill
+  \href{mailto:youremail@tcd.ie}{mma261@uky.edu}}
+% (can be left out to remove footer)
+
+% ====================
+% Logo
+% ====================
+
+% use this to include logos on the left and/or right side of the header:
+% Left: institution
+% \logoright{\includegraphics[height=8cm]{logos/Screenshot 2024-04-11 174352.png}}
+% Right: funding agencies and other affilations 
+%\logoright{\includegraphics[height=7cm]{logos/NSF.eps}}
+
+% ====================
+% Body
+% ====================
+
+\begin{document}
+
+
+
+\begin{frame}[t]
+\begin{columns}[t]
+\separatorcolumn
+
+\begin{column}{\colwidth}
+
+  \begin{block}{Abstract}
+%A power grid is an energy carrier network that transports electricity from sources to  consumers through transmission lines and feeders. These power systems are generally poly-phase networks where power is transmitted into three parallel networks each having their own phase. Phase identification is, therefore, the process of identifying which of the three networks a particular consumer resides and is an essential task for maximizing network efficiency. Due to the advent and proliferation of smart metering which involves observing the voltage consumption from the smart meters at different intervals in time and applying unsupervised learning or clustering to the resulting time-series data. In the case of spectral clustering, success or failure depends on the means by which one learns a graph that connects the consumers and producers on the grid. 
+Graphs have become a powerful tool in studying the underlying structure and behavior of complex networks and the analysis of data. Time series analysis is one such area where construction of graphs plays a critical role as graphs are helpful in studying the similarities or dissimilarities in time series data. Popular methods for constructing graphs on time series data are include Similarity, CoAssociation Matrix, and Smoothness. While these methods rely on the variation of data in time (i.e time difference), very less emphasis is put on volatility. Time series data such as those originating from smart meter data in power grids have a tendency to be volatile where a sudden spike or a tiny time shift may end up in different clustering results. We, therefore, propose building graphs for time-series based on multiresolution analysis that decomposes a signal using the Discrete Wavelet Transform (DWT). We then investigate the inference of underlying graph structures in each band as contributors to a final graph based clustering. This method is called multiview graph fusion where each wavelet resolution is treated as a view.
+
+    
+
+  \end{block}
+
+  
+
+  \begin{block}{Method for Inferring Graphs from Data}
+ 
+    
+
+    
+    %\begin{itemize}
+     % \item \textbf{Similarity} A weight matrix $\mathbf{W}$ of $N\times N$ is defined such that the weight of the edge connecting nodes $i$ and $j$ is calculated using a Gaussian kernel such that:
+%\begin{equation}
+    %W_{i,j}=\begin{cases} \exp\left( \frac{-||\vec{x}_i - \vec{x}_j||^2}{\tau^{2}} \right) & \text{for $i\ne j$ and $||\vec{x}_i - \vec{x}_j|| \leq \kappa$} \\ 0 & \text{else}\end{cases}
+%\end{equation}
+%here $\tau$ and $\kappa$ are user defined constants and $\vec{x}_i , \vec{x}_j$ are the respective data points .The nodes close together have a strong connection close to 1 while nodes far apart have weak (close to 0) or no connection (equal to 0) at all 
+      %\item \textbf{CoAssociation Matrix} 
+%This method is an ensemble spectral clustering approach where  consensus adjacency matrices derived from base clustering results that show the affinity between the nodes in each clustering phase have been aggregated and normalized to procure a final adjacency matrix termed as CoAssociation Matrix. This method of performing ensemble clustering is an attempt to develop a robust spectral clustering method for improving the accuracy.
+     % \item \textbf{Smoothness}
+     The method given data $\mathbf{X} \in \mathbb{R}^{N \times M}$ each column is treated as a graph signal and a graph Laplacian is learnt based on the smoothness/total variation of the graph signals
+      \begin{equation}
+          \begin{aligned}
+\min _L \quad & \alpha\operatorname{tr}\left(X^T L X\right)+\beta\|L\|_F^2 \\
+\text { s.t. } & \operatorname{tr}(L)=n, \\
+& L_{i j}=L_{j i} \leq 0, i \neq j, \\
+& L \cdot 1=0 .
+\end{aligned}
+      \end{equation}
+       where $\alpha\operatorname{tr}\left(X^T L X\right)$ is the spatial smoothness term of graph signals and $\beta\|L\|_F^2$ is the term for controlling the off-diagonal elements. $\alpha$ and $\beta$ are called the regularization parameters. 
+    %\end{itemize}
+  
+    
+  \end{block}
+  \begin{block}{Spectral Perturbation from Multiple Views}
+  The graph laplacians are fused using the method of spectral perturbation and the resultant $\mathbf{L}^{*}$ which is given by the equation.
+\begin{equation}
+\mathbf{L}^*=\frac{\sum_{k=1}^K w^{(k)} \mathbf{U}_c^{(k)} \mathbf{\Lambda}_c^{(k)}\left(\mathbf{U}_c^{(k)}\right)^{\prime}+\alpha \sum_{k=1}^K w^{(k)} \mathbf{L}^{(k)}}{\sum_{k=1}^m w^{(k)} \mathbf{U}_c^{(k)}\left(\mathbf{U}_c^{(k)}\right)^{\prime}+\alpha \mathbf{I}}
+\end{equation}
+
+where the $\mathbf{L}^{k}$ is the laplacian of the $k$-th band/view,$\mathbf{U}_{c}$ are the $c$ largest eigenvectors and $w^{k}$ are the weights assigned to each view/band.
+The values used for assigning weights to each multiresolution band in the final consensus matrix are derived from Similarity Induced Weights and modularity.Similarity induced weights are derived based on the similarity score between the pair of $i$ and $j$ views $sv_{i j}=sv_{j i}=\frac{<\boldsymbol{W}^{(i)}, \boldsymbol{W}^{(i)}>_F}{\left\|\boldsymbol{W}^{(i)}\right\| _F\left\|\boldsymbol{W}^{(i)}\right\|_F}$.
+Where $\boldsymbol{W}$ are the weight matrices from the Laplacians.The modularity can be defined as for a graph $G(V,E)$ with an adjacency matrix $\mathbf{A}$,:
+\begin{equation}
+    \Sigma_{k}(e_{kk}-a_{k}^2)
+\end{equation}
+where $e_{kk}$ are the edges inside a cluster, $S_{k}$, while $a_{k}$ is the average number of edges within $S_{k}$.
+
+
+%\begin{equation}
+%s v_{i j}=s v_{j i}=\frac{<\boldsymbol{W}^{(i)}, \boldsymbol{W}^{(i)}>_F}{\left\|\boldsymbol{W}^{(i)}\right\| _F\left\|\boldsymbol{W}^{(i)}\right\|_F}
+%\end{equation}
+%where $\boldsymbol{W}$ are the weight matrices from the Laplacians.
+%The modularity can be defined as for a graph $G(V,E)$ with an adjacency matrix $\mathbf{A}$,:
+%\begin{equation}
+ %   \Sigma_{k}(e_{kk}-a_{k}^2)
+%\end{equation}
+%where $e_{kk}$ are the edges inside a cluster, $S_{k}$, while $a_{k}$ is the average number of edges within $S_{k}$.
+
+  
+      
+  \end{block}
+\begin{block}{Conclusion and Future Work}
+      In this work, we investigated a method inferring a graph based on multi-resolution analysis of time series signals and learning a final ensemble graph fused in a weighted fashion. The final procured graph  has been applied for spectral clustering addressing the phase identification problem in power distribution systems. We would further investigate in applying this method for other time series clustering problems.
+ \end{block}
+\end{column}
+
+\separatorcolumn
+
+\begin{column}{\colwidth}
+
+  \begin{block}{Time Series Data}
+
+    \begin{figure}
+        \centering
+        \includegraphics[width=1\textwidth]{figures/Blakely_Time_Series_Data.pdf}
+        \caption{Historic Time Series Smart Meter Data}
+        \label{fig:enter-label}
+    \end{figure}
+
+ %\begin{itemize}
+% \item Due to the advent and proliferation of smart metering infrastructure, phase identification has advanced from conventional on-site methods to data analysis.
+% \item This involves observing the voltage consumption from the smart meters at different intervals in time and applying unsupervised learning or clustering to the resulting time-series data.
+% \item The aforementioned methods for inferring graphs from data have been applied on hourly voltage profile data to address the Phase Identification Problem.
+     
+    
+    % \item Here a synthetic dataset has been generated using OpenDSS software simulating IEEE-13 circuit which are voltage magnitudes of 41 nodes over 2000 hours of time.
+    % \item The time series load profile curve has been classified into three phases based on the ground truth labels.
+ %\end{itemize}  
+
+
+  \end{block}
+
+ % \begin{block}{Initial Graph Results}
+
+   
+
+    %\begin{figure}
+     % \centering        \includegraphics[width=0.9\textwidth]{figures/GraphComp2.png}
+
+      %\caption{Graph Visualization color coded with the ground truth phase labels Red: Phase A, Blue:Phase B, Green: Phase C}
+      %\label{GraphComp}
+    %\end{figure}
+    %\begin{itemize}
+     %   \item Fig.\ref{GraphComp} shows the comparison of the three versions of graph learning on the voltage time series data.
+     %   \item The nodes in each of these graphs have been color coded with the ground truth phase labels.
+    %\end{itemize}
+
+  %\end{block}
+
+  %\begin{block}{Nam cursus consequat egestas}
+
+  %\begin{figure}
+    %  \centering
+    %  \includegraphics[width=0.91\textwidth]{figures/wavelet.png}
+     % \caption{Caption}
+     % \label{fig:enter-label}
+  %\end{figure}
+
+ % \end{block}
+
+ \begin{block}{Example of Wavelet Decomposition of Time Series}
+
+   \begin{figure}
+      \centering
+       \includegraphics[width=1\textwidth]{figures/Blakely_8.pdf}
+        \caption{Wavelet Multi-resolution analysis of a time series signal}
+       \label{fig:enter-label}
+   \end{figure}
+%\begin{itemize}
+%    \item The voltage time series data is decomposed by high-pass and low-pass filters.
+  %  \item  The  raw voltage data is decomposed into lower resolution components by means of down-sampling process.
+  %  \item The large scale decompositions are called details while the small scale decompositions are called approximations. Summation of all these components results in a reconstructed signal.
+  %  \item Here 8 levels of decompositions are shown in this work.
+%\end{itemize}
+    
+  \end{block}
+
+
+
+
+
+\begin{block}{Acknowledgements}
+This work was supported in part by the National Science Foundation under Grants CCF 2230161 and 2230162 and in part by AFOSR under Grant FA9550-22-1-0362.
+    
+\end{block}
+
+
+
+
+\end{column}
+
+%
+
+ 
+\separatorcolumn  
+\begin{column}{\colwidth}
+  \begin{block}{ Pipeline Multiview Consensus Graph Ensemble}
+ \begin{figure}
+        \centering
+        \includegraphics[width=1\textwidth,height=18cm]{figures/EnsemblePipeline.pdf}
+        \caption{Pipeline for the Ensemble}
+        \label{fig:enter-label}
+    \end{figure}
+
+  \end{block}
+
+  %\begin{block}{References}
+
+   % \nocite{*}
+   % \footnotesize{\bibliographystyle{plain}\bibliography{poster}}
+
+ % \end{block}
+   \begin{block}{Experimentation and Result}
+   \begin{figure}
+       \centering
+       \includegraphics[width=1\textwidth,height=15cm]{figures/IEEE34cktposter.pdf}
+       \caption{a) Graphs with k-nearest neighbors using similarity induced weights b) Graphs using Dong's algorithm and similarity induced weights c) Graphs using Dong's algorithm and modularity weights}
+       \label{fig:enter-label}
+   \end{figure}
+\end{block}
+
+\begin{figure}
+       \centering
+       \includegraphics[width=1\textwidth,height=20cm]{figures/PhaseIdentificationPoster (1).pdf}
+       \caption{Phase Identification n Historic Smart Meter Data showing 90 percent accuracy}
+       \label{fig:enter-label}
+   \end{figure}
+
+
+    
+
+
+
+\end{column}
+
+\separatorcolumn
+\end{columns}
+\end{frame}
+
+\end{document}

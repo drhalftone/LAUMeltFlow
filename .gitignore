@@ -41,3 +41,20 @@ nul
 # Claude Code local config — never commit
 .claude/
 **/.claude/
+
+# Project virtual environment
+.lmf/
+
+# Logs (training, data-gen, LaTeX)
+*.log
+
+# Archives
+*.zip
+*.tgz
+*.tar.gz
+
+# Fortran reference solver — source lives in the tarball / WSL, not the repo
+/heat_2026-04-11_1837/
+
+# Courseware sent out of context (not part of this project)
+/interactive_curve_tracer.html

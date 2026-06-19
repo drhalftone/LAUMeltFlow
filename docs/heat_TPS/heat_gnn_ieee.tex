@@ -31,7 +31,9 @@ matching to machine precision on a conduction--pyrolysis case and to 0.064~K on 
 full gas and aerothermal case. Training on data from the validated solver, a
 per-cell message-passing GNN reproduces a held-out heating scenario over a full
 60~s rollout to a mean error of 7.6~K and tracks the pyrolysis front to within a
-fraction of a millimeter.
+fraction of a millimeter. On the full gas case a direct per-cell predictor
+diverges on a held-out forcing, whereas a conservative flux-form variant that
+predicts face fluxes removes the divergence and holds a bounded rollout.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -44,31 +46,118 @@ scientific machine learning
 % 1.2 + 1.3 cost bottleneck and the surrogate response (CITE motivation \cite{...})
 % 1.4 contribution and scope
 % 1.5 relation to prior bead/Sod work (CITE own work \cite{...})
-Thermal protection systems shield a vehicle from the intense aerothermal heating
-of atmospheric entry. \emph{[draft body from white paper; add citations at marked
-spots.]} Our surrogate follows the mesh-based graph-network line of
-work~\cite{meshgraphnets,sanchez2020learning}, applied here to a multi-physics
-heat-shield solver.
+Thermal protection systems (TPS) shield a vehicle from the intense aerothermal
+heating of atmospheric entry. Designing one means choosing a material and a
+thickness that keep the structure beneath the heat shield below its temperature
+limit while adding as little mass as possible. The governing physics is a coupled,
+strongly nonlinear problem: heat conducts into the material, the material
+pyrolyzes (chemically decomposes) as it heats, the pyrolysis gas percolates out
+through the charring solid, and the exposed surface exchanges energy with the hot
+boundary layer.
 
-% Suggested citation anchors:
-%  - surrogate motivation: \cite{surrogate_motivation}
-%  - mesh-based GNN simulation: \cite{meshgraphnets,sanchez2020learning}
-%  - TPS/ablation surrogates: \cite{tps_surrogate}
-%  - prior LAUMeltFlow bead/Sod work: \cite{own_symposium}
+A high-fidelity solver that captures this coupling is expensive to run, and TPS
+design needs many such runs: parameter sweeps, sizing studies, and optimization
+loops each call the solver hundreds or thousands of
+times~\cite{pan2023,mazzaracchio2010,lu2024}. That cost is the bottleneck this
+work targets. The response we pursue is a machine-learned surrogate trained on
+data from a trusted reference solver, so that design loops can replace most solver
+calls with fast surrogate evaluations~\cite{queipo2005}.
+
+We use a graph neural network for the surrogate because the discretized solver is
+naturally a graph: the mesh cells are nodes and adjacent cells are connected by
+edges~\cite{sanchez2020learning}. A GNN that shares its weights across all cells
+is mesh-native and, in principle, applies to a mesh of any
+size~\cite{meshgraphnets}, the property we ultimately want for a tool that must
+run at varying resolutions.
+
+This paper reports two things. First, a faithful Python re-implementation of the
+reference Fortran solver, verified against the original to machine precision on
+the conduction--pyrolysis case and to a small fraction of a kelvin on the full
+multi-physics case. Second, a first working surrogate trained on that validated
+solver's data, accurate over a full rollout on a held-out scenario, together with
+a diagnosed failure mode on the gas case and a conservative flux-form formulation
+that removes it.
 
 \section{Reference Solver}
-% Physics: conduction + pyrolysis + Darcy gas + aerothermal BC. Eq. (1).
+The reference is a 1D finite-volume heat-shield code written in Fortran. It models,
+in one spatial dimension through the thickness of the slab:
+\begin{itemize}
+  \item \textbf{Heat conduction} with temperature-dependent and
+  char-state-dependent material properties.
+  \item \textbf{Pyrolysis}, the heat-driven decomposition of the solid, modeled as
+  a set of Arrhenius reactions that consume reactive species and release gas.
+  \item \textbf{Pyrolysis-gas transport} through the porous char (Darcy flow plus
+  advection), which carries energy and couples back into the temperature field.
+  \item \textbf{An aerothermal surface boundary}, including a B-prime
+  surface-chemistry table, a blowing correction, and a wall-enthalpy balance,
+  representing the interaction with the hot boundary layer.
+\end{itemize}
+The governing energy equation is the conduction-diffusion balance
 \begin{equation}
 \rho\, c_p\, \frac{\partial T}{\partial t}
   = \frac{\partial}{\partial x}\!\left(k\, \frac{\partial T}{\partial x}\right)
-  + (\text{pyrolysis and gas source terms}).
+  + (\text{pyrolysis and gas source terms}),
 \end{equation}
+discretized on a finite-volume mesh. Each cell carries a temperature and a set of
+species densities; the conduction term is evaluated from temperature differences
+across cell faces, and the pyrolysis term advances each species by a closed-form
+Arrhenius update. Material properties are blended between virgin and char states by
+a char-progress variable derived from the local density.
+
+Three reference cases ship with the code and are used throughout: \texttt{aw1}, a
+conduction-plus-pyrolysis case with a prescribed wall-temperature history and the
+gas physics off; and \texttt{aw2\_tc21} and \texttt{aw2\_tc22}, which add the full
+gas and aerothermal boundary. As shipped, \texttt{aw2\_tc22} is configured
+identically to \texttt{aw2\_tc21}.
 
 \section{Methodology}
 \subsection{Python Port}
+The solver was re-implemented in Python one physics module at a time: grid and
+geometry setup, mixture properties, the Arrhenius pyrolysis update, the gas solve,
+and the aerothermal boundary. Where a coding choice affected the numerical result,
+the Python deliberately matched the Fortran. The thermocouple sampling in
+particular was rewritten to mirror the reference probe-sampling routine, clamping
+to the face value at domain boundaries and reconstructing it by interpolation in
+the interior. A few details proved to matter for agreement: thermocouple positions
+are given as depth from the right wall; the face density used to evaluate the face
+conductivity is the pre-pyrolysis density, matching the Fortran update order; and
+output is written before the physics step, matching the reference time-offset
+convention.
+
 \subsection{Verification}
+Verification is done by direct column-by-column comparison against the Fortran
+output from a run with identical configuration. For every output column (time,
+each thermocouple temperature, and each density), we report the maximum absolute,
+mean absolute, and maximum relative error across the run. This is a strict test:
+it compares the full time history at every recorded probe, not just a summary
+statistic.
+
 \subsection{Training-Data Generation}
+Once verified, the Python solver generates the training data. Each run records the
+full per-cell field over time (temperature, bulk density, the per-species
+densities, and, in gas runs, the gas pressure and mass flux), including the two
+ghost cells at the domain ends that carry the boundary forcing. A single recorded
+trajectory can later be turned into training pairs at any time-step spacing without
+re-running the solver. The first dataset varies the boundary forcing, a sweep of
+wall-temperature histories, on the fast gas-off \texttt{aw1} case.
+
 \subsection{GNN Architecture}
+The surrogate is a per-cell message-passing network. Each finite-volume cell is a
+node carrying the state vector $[T,\rho,\rho_i,\text{porosity}]$. Adjacent cells
+are joined by edges whose features are relative: the difference between the
+neighbor's state and the cell's own, together with the cell spacing. This relative
+encoding mirrors the physics, since the conduction flux between two cells depends
+on their temperature difference and their spacing. A forward step encodes the node
+and edge features with small multilayer perceptrons, performs one round of message
+passing (each cell aggregates the encoded messages from its left and right
+neighbors and updates its hidden state), and decodes a predicted change in the
+cell's state, which is added to the current state and rolled forward in time. A
+single message-passing round matches the nearest-neighbor reach of the conduction
+stencil, and weight sharing across cells lets the same model apply to a mesh of any
+length. The model predicts only the independent degrees of freedom, temperature and
+the per-species densities; bulk density and porosity are derived from them. Training
+minimizes the error of a short multi-step rollout rather than a single step, which
+controls the accumulation of error over a long rollout (Section~\ref{sec:aw1acc}).
 
 \begin{figure}[t]
   \centering
@@ -81,9 +170,33 @@ heat-shield solver.
   \label{fig:graph}
 \end{figure}
 
+\subsection{Conservative Flux-Form Variant}
+The gas-case failure (Section~\ref{sec:aw2}) motivates a second output
+formulation. Rather than predicting a per-cell state change directly, the model
+predicts a flux on each cell face and forms the change as the net flux across the
+cell's two faces plus a local source,
+\begin{equation}
+\Delta_i = \left(F_{i-1/2} - F_{i+1/2}\right) + S_i ,
+\end{equation}
+where $F_{i\pm1/2}$ are the face fluxes and $S_i$ is a local source. The face flux
+is constructed antisymmetric, $F(a,b) = -F(b,a)$, giving two properties by
+construction: (i)~conservation, since whatever leaves a cell across a face enters
+its neighbor; and (ii)~a zero baseline, since a uniform field yields zero face
+flux, so quiescent cells receive no transport change and the per-step bias cannot
+arise. Change not driven by a neighbor gradient, the local pyrolysis source, is
+carried by $S_i$. The flux and source are produced by the same weight-shared
+message-passing network, and the change is decoded with no constant offset so the
+zero baseline survives. This is the conservative, divergence-form construction
+used for learned solvers~\cite{brandstetter2022,kochkov2021}.
+
 \section{Results}
 \subsection{Port Validation}
-% aw1 bit-exact; aw2_tc21 to 0.064 K. Table below.
+On \texttt{aw1} (conduction plus pyrolysis), all fifteen output columns match the
+Fortran output to approximately $10^{-8}$, machine precision, including every
+interior thermocouple: the conduction and pyrolysis port is exact. On
+\texttt{aw2\_tc21} (full gas plus aerothermal), with the gas physics enabled and
+compared against the same-configuration Fortran output, agreement is summarized in
+Table~\ref{tab:val}.
 \begin{table}[t]
 \caption{Port validation against the Fortran reference (\texttt{aw2\_tc21}).}
 \label{tab:val}
@@ -100,9 +213,28 @@ Time, cold back face & bit-exact \\
 \end{tabular}
 \end{table}
 
+During verification, an apparent early interior drift and a roughly 37.7~K
+back-face offset both proved to be artifacts of how the thermocouples were sampled,
+not numerical error; both vanished once the probe sampling matched the reference
+routine. Comparing two temperature fields through a sampling layer can manufacture
+a discrepancy that is not present in the physics itself. As shipped,
+\texttt{aw2\_tc22} is byte-for-byte identical in configuration to
+\texttt{aw2\_tc21} and so adds no independent validation condition.
+
 \subsection{Surrogate Accuracy (aw1)}
-% aw1: 7.6 K mean rollout (~0.5-1% of field); tracks pyrolysis front <1 mm.
-% Multi-step (rollout) training cut end-of-traj error from 100s of K to 10s of K.
+\label{sec:aw1acc}
+Trained on solver-generated trajectories, the surrogate is rolled forward on its
+own predictions over a held-out \texttt{aw1} heating scenario (gas off) for the
+full 60~s, with the known boundary forcing re-imposed each step. The mean rollout
+error is 7.6~K, roughly half a percent to one percent of the 298 to 1500~K field,
+and the surrogate tracks the char and pyrolysis front to within a fraction of a
+millimeter (Fig.~\ref{fig:aw1rollout}). Reaching this required training on
+multi-step rollouts rather than single steps: a single-step-trained model is
+accurate for one prediction but accumulates error and drifts once rolled forward
+freely, and the end-of-trajectory error fell from several hundred kelvin to tens of
+kelvin under a multi-step rollout loss. This error-accumulation behavior, and its
+mitigation by noise injection and multi-step training, are well documented for
+learned simulators~\cite{sanchez2020learning,brandstetter2022}.
 
 \begin{figure*}[t]
   \centering
@@ -116,12 +248,30 @@ Time, cold back face & bit-exact \\
 
 \subsection{Gas Case (aw2): A Diagnosed Failure Mode}
 \label{sec:aw2}
-% NEGATIVE result. In-sample bounded ~625 K, but HELD-OUT diverges (3587 K):
-% the surrogate does not generalize across forcings on the gas case.
-% Cause is TEMPORAL not spatial -- per-cell aw2 is gentler (111 vs 221 K), but the
-% square-pulse aero flux jumps the surface 734 K per super-step (vs aw1's 41 K).
-% dt-aware adaptive cadence + stay-put reg recover in-sample behavior but not held-out.
-% Ruled out: more trajectories, gas-as-input, wider stencil. Solver verified sound.
+Extending the surrogate to the full gas-plus-aerothermal case does not produce a
+usable model, and the way it fails is informative. Trained and rolled out on the
+same forcing it converges to a bounded error of about 625~K, but the proper test,
+training on a sweep of eight flux histories and rolling out on an unseen one,
+diverges to several thousand kelvin. The in-sample result is optimistic: the model
+largely fits the one trajectory it is evaluated on and does not generalize across
+forcings.
+
+The cause is temporal, not spatial (Fig.~\ref{fig:why}). Per cell, \texttt{aw2}
+is no steeper than \texttt{aw1}, since its finer mesh spreads the gradient over
+more cells. What differs is the rate of change per step: the \texttt{aw2} surface,
+driven by a square-pulse aerothermal flux, heats from about 300~K to over 1500~K in
+roughly one second, so it moves hundreds of kelvin in a single coarse super-step
+against tens of kelvin for \texttt{aw1}, and a fixed super-step cannot track that.
+Making the model time-step aware and using an adaptive schedule, with fine steps
+near the transient and coarse steps on the plateau, converts the divergence into a
+bounded in-sample rollout (Fig.~\ref{fig:aw2prog}). A second, smaller effect is a
+per-step bias: the model predicts a small nonzero change for cold, untouched cells,
+which accumulates over a long rollout; a stay-put regularizer reduces it. Neither
+remedy closes the held-out gap, and we ruled out more training trajectories,
+treating the gas state as a known input, and a wider stencil. The reference solver
+was verified sound on this case, so the failure is the surrogate's, not the data's.
+This bounds where a per-cell state-delta GNN of this kind applies and motivates the
+conservative formulation of Section~\ref{sec:flux}.
 
 \begin{figure*}[t]
   \centering
@@ -144,25 +294,105 @@ Time, cold back face & bit-exact \\
   \label{fig:aw2prog}
 \end{figure}
 
+\subsection{Conservative Flux-Form Removes the Divergence}
+\label{sec:flux}
+The flux-form variant of the preceding section was trained on the same
+eight-forcing \texttt{aw2} dataset as the direct model, with identical
+single-step training and the gas state held from truth so
+the test isolates the thermal and chemical rollout; the two models differ only in
+their output. Both were rolled out on a held-out forcing, not among the eight
+training cases, recorded at the training cadence so the comparison carries no
+time-step mismatch (Table~\ref{tab:flux}, Fig.~\ref{fig:fluxcompare}).
+
+\begin{table}[t]
+\caption{Held-out \texttt{aw2} rollout: mean interior $T$ error, direct vs.\
+conservative flux-form.}
+\label{tab:flux}
+\centering
+\begin{tabular}{lrr}
+\toprule
+ & Direct & Flux-form \\
+\midrule
+Over the full 120~s rollout & 8755~K & 121~K \\
+At the end of the rollout    & 25434~K & 104~K \\
+End-of-rollout maximum       & 38359~K & 312~K \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{flux_aw2_compare.png}
+  \caption{Held-out \texttt{aw2} rollout error vs.\ time (log scale). The direct
+  per-cell-delta model diverges past $10^4$~K; the conservative flux-form stays
+  bounded near 100~K on the unseen forcing.}
+  \label{fig:fluxcompare}
+\end{figure}
+
+The direct model diverges to $\sim$25{,}000~K by the end of the rollout,
+reproducing Section~\ref{sec:aw2}; the flux-form stays bounded near 100--160~K
+throughout, roughly a $240\times$ reduction in end error, on a forcing it did not
+see in training. The conservative formulation removes the divergence. Two
+qualifications: a bounded error near 100~K on a 300--1500~K field is stable but
+not yet accurate ($\sim$10\%), and this is single-step training only; the
+multi-step rollout training that took the gas-off surrogate to single digits has
+not yet been applied. The remaining gap is accuracy, not stability.
+
 \subsection{Wall Time}
-% Fortran ~3 min vs Python ~15.6 min (aw2_tc21). GNN ~4x faster than Python solver
-% on aw1 (CPU); modest -- bigger super-step / mesh / amortization not yet exercised.
+The Fortran solver runs \texttt{aw2\_tc21} in about 3 minutes; the present
+unoptimized Python implementation takes about 15.6 minutes, roughly five times
+slower, as expected for interpreted array code against compiled Fortran. The
+Python port's role is to generate verified training data and to be a readable
+reference, not to be fast; the speed argument of this program is the surrogate,
+whose wall-time advantage over the solver is the subject of ongoing measurement.
 
 \section{Discussion}
-% (1) aw1 success: mesh-native inductive bias; learns local dynamics + moving front.
-% (2) The aw2 boundary, sharp and explainable: a fixed-step state-delta rollout is the
-%     wrong vehicle for a fast localized forcing transient; in-sample-vs-held-out gap is
-%     the honesty point -> motivates the conservative flux-form fix (Sec. Future Work).
-% (3) Data-selection lesson: trajectory vs volume sampling; ablator's coupled T-char manifold.
-% (4) Failure modes: rollout error accumulation (cf. bead paper), quiescent-cell bias.
+The results establish three things. First, the multi-physics reference solver can
+be reproduced faithfully in modular, readable Python: to machine precision on the
+conduction-plus-pyrolysis case and to a small fraction of a kelvin on the full gas
+case. That fidelity is what makes the solver usable as a data generator, since a
+surrogate is only as trustworthy as the data it learns from. Second, a per-cell
+message-passing GNN trained on that data is an accurate surrogate for the gas-off
+case over a full rollout, including faithful tracking of the moving pyrolysis
+front; its relative edge features give it the local information the physics uses,
+and its weight sharing is what makes it mesh-native.
+
+Third, the gas case marks the edge of where the direct architecture works, and the
+boundary is sharp and explainable (Section~\ref{sec:aw2}). The same model fails to
+generalize there because a fixed super-step cannot follow the stiff aerothermal
+surface transient and because a small per-step bias on quiescent cells accumulates
+over a long rollout. A per-cell state-delta predictor learns local dynamics well,
+but a fixed-step rollout is the wrong vehicle for a fast, localized forcing
+transient. The conservative flux-form, in which a uniform field produces exactly
+zero change by construction, removes the divergence (Section~\ref{sec:flux}): on
+the same held-out forcing the direct model runs past 25{,}000~K while the flux-form
+stays bounded near 100~K. Making it accurate, rather than only stable, remains
+open. The verification caution of Section~\ref{sec:aw1acc}, that a sampling layer
+can mask or invent discrepancies, applies equally when comparing a surrogate field
+against a solver field.
 
 \section{Future Work}
-% Conservative flux-form GNN for the gas case: predict face fluxes -> divergence, so a
-%   uniform field gives EXACTLY zero change -> kills the quiescent bias at the root.
-%   Most promising route to an aw2 surrogate that generalizes.
-% Mesh-resolution generalization (multi-res training). 2D/3D. Radiation + recession.
+The conservative flux-form already removes the gas-case divergence
+(Section~\ref{sec:flux}); the remaining work is accuracy, not stability: apply the
+multi-step rollout training that helped the gas-off case, and make the model
+time-step aware with an adaptive schedule for the stiff aerothermal transient.
+Beyond the gas case, training across a range of mesh resolutions would let one
+model run at resolutions it did not see; the surrogate's wall-time advantage over
+the solver should be measured across a design-relevant set of evaluations; and the
+physics can be extended with radiation, surface recession, and two- and
+three-dimensional meshes.
 
 \section{Conclusion}
+We re-implemented a coupled heat-conduction and pyrolysis heat-shield solver in
+Python, verified it against the Fortran reference to machine precision on the
+gas-off case and to 0.064~K on the full gas case, and trained a per-cell
+message-passing GNN surrogate that reproduces a held-out gas-off rollout to 7.6~K.
+On the gas case the direct surrogate diverges, a failure we trace to a fixed-step
+state-delta formulation; a conservative flux-form variant that predicts face fluxes
+removes the divergence and yields a bounded, if not yet accurate, rollout on an
+unseen forcing. Multi-step training and adaptive time-stepping for the flux-form
+model, mesh-resolution generalization, and extension to higher dimensions are the
+next steps.
 
 \section*{Acknowledgment}
 This work builds on the reference heat-shield solver developed by Dr.\ Martin and

@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Heat-shield model — governing equations</title>
+<script>
+  MathJax = { tex: { inlineMath: [['\\(','\\)']], displayMath: [['$$','$$']] } };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<style>
+  body { font-family: 'Segoe UI', Arial, sans-serif; max-width: 860px; margin: 30px auto;
+         padding: 0 20px; color: #1d2026; line-height: 1.55; }
+  h1 { font-size: 24px; border-bottom: 2px solid #2962FF; padding-bottom: 6px; }
+  h2 { font-size: 19px; color: #1b3a6b; margin-top: 34px;
+       border-bottom: 1px solid #dfe3e8; padding-bottom: 4px; }
+  h3 { font-size: 15px; color: #2962FF; margin-top: 22px; }
+  .eqbox { background: #f6f8fb; border: 1px solid #e2e7ee; border-left: 4px solid #2962FF;
+           border-radius: 6px; padding: 6px 16px; margin: 12px 0; overflow-x: auto; }
+  code { background: #eef1f5; padding: 1px 5px; border-radius: 3px; font-size: 0.92em; }
+  .note { color: #555; font-size: 14px; }
+  .key { background: #fffbe6; border: 1px solid #ffe28a; border-radius: 6px;
+         padding: 10px 16px; margin: 16px 0; }
+  .muted { color: #888; }
+  table { border-collapse: collapse; margin: 14px 0; font-size: 14px; }
+  td, th { border: 1px solid #d8dde3; padding: 6px 12px; text-align: left; }
+  th { background: #f0f3f7; }
+</style>
+</head>
+<body>
+
+<h1>Heat-shield model — governing equations</h1>
+<p class="note">Reference solver (the physics) and the GNN surrogate (the learned
+stand-in), side by side. The whole point: the surrogate learns to imitate the
+solver's per-cell conduction update, eq. (2).</p>
+
+<h2>Part 1 — Reference solver (physics)</h2>
+
+<h3>1. Heat conduction (the governing PDE)</h3>
+<div class="eqbox">$$\rho\, c_p \,\frac{\partial T}{\partial t}
+   = \frac{\partial}{\partial x}\!\left(k\,\frac{\partial T}{\partial x}\right)$$</div>
+<p class="note">Heat stored in a cell (left) = net heat conducted in across its
+faces (right). Variables:</p>
+<ul class="note">
+  <li>\(T\) = temperature [K], the thing we solve for; it varies with position and time.</li>
+  <li>\(t\) = time [s]; \(x\) = position through the slab [m].</li>
+  <li>\(\rho\) = density [kg/m³] (how much solid mass per unit volume in the cell).</li>
+  <li>\(c_p\) = specific heat capacity [J/(kg·K)] (energy to raise 1 kg by 1 K).</li>
+  <li>\(k\) = thermal conductivity [W/(m·K)] (how readily heat flows through the material).</li>
+  <li>\(\partial T/\partial t\) = rate of temperature change in time;
+      \(\partial T/\partial x\) = temperature gradient in space (slope of \(T\) vs \(x\)).</li>
+</ul>
+
+<h3>2. Conduction discretized (what each cell computes)</h3>
+<p class="note">The slab is split into cells; cell \(i\) has one temperature
+\(T_i\). "Discretized" just means we replace the continuous derivatives in eq. (1)
+with differences between neighboring cells. Heat flux across the face between
+cells \(i\) and \(i{+}1\) (the half-index \(i{+}1/2\) denotes that shared face):</p>
+<div class="eqbox">$$q_{i+1/2} = -\,k_{\text{face}}\,\frac{T_{i+1}-T_i}{\Delta x}$$</div>
+<ul class="note">
+  <li>\(q\) = heat flux [W/m²] = how fast heat crosses a face. The minus sign means
+      heat flows from hot to cold (down the gradient).</li>
+  <li>\(i\) = cell index; \(T_{i+1}-T_i\) = temperature difference to the right neighbor.</li>
+  <li>\(\Delta x\) = cell spacing [m] (distance between cell centers).</li>
+  <li>\(k_{\text{face}}\) = conductivity evaluated at the face between the two cells.</li>
+</ul>
+<p class="note">Each cell then updates from the imbalance of its two face fluxes
+(what comes in the left face minus what leaves the right face):</p>
+<div class="eqbox">$$T_i^{\,\text{new}} = T_i
+   + \frac{\Delta t}{\rho\, c_p\, \Delta x}\,\big(q_{i-1/2}-q_{i+1/2}\big)$$</div>
+<p class="note">\(\Delta t\) = the time-step size [s] (how far forward in time one update
+moves); \(T_i^{\,\text{new}}\) = the cell's temperature after the step.
+The driving term is the \(\Delta T/\Delta x\) flux: neighbor temperature difference
+over the spacing. <b>This single equation is what the GNN learns to imitate.</b></p>
+
+<h3>3. Stable time step (CFL) — the mesh-resolution coupling</h3>
+<p class="note"><b>CFL</b> = Courant–Friedrichs–Lewy condition: a stability rule for
+explicit (step-by-step) time marching. If the time step is too large for the cell
+size, the numerical solution blows up. CFL sets the largest \(\Delta t\) that stays
+stable:</p>
+<div class="eqbox">$$\Delta t = \tfrac{1}{2}\,
+   \frac{\Delta x_{\max}^{2}\,\rho\, c_p}{k\cdot \text{CFL}}
+   \;\propto\; \Delta x^{2} \;\propto\; \frac{1}{N^{2}}$$</div>
+<ul class="note">
+  <li>\(\Delta x_{\max}\) = the largest cell width in the mesh [m].</li>
+  <li>\(\text{CFL}\) = a chosen safety number (\(\geq 1\)); larger = smaller, safer steps.</li>
+  <li>\(N\) = number of cells in the mesh (NBRN). Finer mesh = larger \(N\) = smaller \(\Delta x\).</li>
+  <li>\(\propto\) means "proportional to": \(\Delta t\) scales as \(\Delta x^2\), and since
+      \(\Delta x = L/N\), that is \(1/N^2\).</li>
+</ul>
+<p class="note">The \(\Delta x^2\) is exactly why a finer mesh needs a smaller step,
+and why the snapshot \(\Delta t\) drifted with resolution.</p>
+
+<h3>4. Pyrolysis (Arrhenius decomposition)</h3>
+<p class="note"><b>Pyrolysis</b> = heat-driven chemical breakdown of the material.
+The solid is a mix of reactive components ("species"); each one decays as it heats,
+losing mass (which is why \(\rho\) drops as a cell chars). <b>Arrhenius</b> is the
+standard temperature-dependent reaction-rate law. Each species density \(W_k\)
+(these are the \(\rho_i\) in the node features) decays at the rate:</p>
+<div class="eqbox">$$\frac{dW_k}{dt}
+   = -\,A_k\,W_k^{\psi_k}\,e^{-E_k/T}$$</div>
+<ul class="note">
+  <li>\(W_k\) = density of species \(k\) [kg/m³]; \(dW_k/dt\) = its rate of decay.</li>
+  <li>\(k\) here = species index (1, 2, 3…), <em>not</em> the conductivity \(k\) from above.</li>
+  <li>\(A_k\) = pre-exponential factor [1/s] (sets the overall reaction speed).</li>
+  <li>\(E_k\) = activation energy [K, here folded with the gas constant] (the energy barrier).</li>
+  <li>\(\psi_k\) = reaction order (a dimensionless exponent shaping the rate).</li>
+  <li>\(e^{-E/T}\) = the Arrhenius switch: near zero when \(T\) is low, rising sharply once
+      \(T\) is high — so a cell only pyrolyzes once it gets hot enough.</li>
+</ul>
+<p class="note">Solved in closed form over one step (\(W\) = the value at the start
+of the step, \(W^{\text{new}}\) = after it):</p>
+<div class="eqbox">$$W^{\text{new}} = W\,e^{-A\,\Delta t\,e^{-E/T}}
+   \qquad (\psi = 1)$$</div>
+
+<h3>5. Derived state (how \(\rho\) maps to the front variables)</h3>
+<div class="eqbox">$$\rho = \sum_k W_k
+   \qquad
+   \beta = \frac{\rho_v-\rho}{\rho_v-\rho_c}
+   \qquad
+   \text{porosity} = \phi + (\phi_c-\phi)\,\beta$$</div>
+<ul class="note">
+  <li>\(\sum_k W_k\) = sum over all species: the bulk density \(\rho\) is just the
+      total of the per-species densities.</li>
+  <li>\(\rho_v\) = virgin (un-pyrolyzed) bulk density [kg/m³]; \(\rho_c\) = fully-charred
+      bulk density. (In aw1: \(\rho_v \approx 280\), \(\rho_c \approx 220\).)</li>
+  <li>\(\beta\) = char fraction, 0 to 1: \(\beta = 0\) when the cell is fully virgin
+      (\(\rho=\rho_v\)), \(\beta = 1\) when fully char (\(\rho=\rho_c\)). These are the
+      colors in the front figure.</li>
+  <li>porosity = void fraction of the cell (empty pore space, 0 to 1).
+      \(\phi\) = virgin porosity, \(\phi_c\) = char porosity; porosity blends between
+      them by \(\beta\), so it rises as the cell chars (and is the pore network the gas
+      flows through in aw2).</li>
+</ul>
+<p class="note">Because \(\rho\) and porosity both follow from the \(\rho_i\), the model
+predicts only the independent \(\rho_i\) and derives the rest.</p>
+
+<p class="muted">(aw2 only — gas transport adds Darcy's law
+\(u = -\tfrac{K}{\mu}\,\partial p/\partial x\) plus advection.
+\(u\) = gas velocity, \(K\) = permeability, \(\mu\) = gas viscosity,
+\(\partial p/\partial x\) = pressure gradient. Skip until aw2.)</p>
+
+<h2>Part 2 — GNN surrogate (the learned model)</h2>
+<p class="note">A learned stand-in for eq. (2). <b>GNN</b> = graph neural network: the
+mesh is treated as a graph (cells = nodes, shared faces = edges), and small neural
+networks compute each cell's update from its neighbors. <b>MLP</b> = multi-layer
+perceptron = a basic feed-forward neural network (a stack of learned linear maps
+with nonlinearities); here each \(f\) and \(g\) below is one MLP whose weights are
+learned during training. Notation matches <code>gnn_model.py</code>.</p>
+
+<h3>1. Encode node and edges</h3>
+<p class="note">Node feature \(x_i = [\,T,\ \rho,\ \rho_i,\ \text{porosity}\,]\) — the
+state vector each cell carries (note: here \(x_i\) is the <em>feature vector</em> of
+node \(i\), not a position). Edges are <b>relative</b> (neighbor minus self, plus the
+spacing):</p>
+<div class="eqbox">$$e_{i\to j} = \big[\,x_j - x_i,\ \ \Delta x\,\big]$$</div>
+<ul class="note">
+  <li>\(e_{i\to j}\) = the edge feature from cell \(i\) to its neighbor \(j\).</li>
+  <li>\(x_j - x_i\) = how the neighbor's state differs from this cell's (e.g. \(\Delta T\),
+      \(\Delta\rho\)) — the same neighbor-difference the physics flux uses.</li>
+  <li>\(\Delta x\) = the spacing to that neighbor (the geometry input; the reason the
+      model can adapt to different mesh resolutions).</li>
+</ul>
+<p class="note">Each is passed through a small MLP "encoder" that maps raw features
+into a hidden vector:</p>
+<div class="eqbox">$$h_i = f_{\text{node}}(x_i),
+   \qquad m_{i\to j} = f_{\text{edge}}(e_{i\to j})$$</div>
+<ul class="note">
+  <li>\(h_i\) = the node's hidden (encoded) state; \(m_{i\to j}\) = the encoded
+      "message" coming along an edge.</li>
+  <li>\(f_{\text{node}},\ f_{\text{edge}}\) = the two encoder MLPs.</li>
+</ul>
+
+<h3>2. Message passing (one hop, K = 1)</h3>
+<p class="note">"Message passing" = each node updates itself by combining its own
+hidden state with the messages from its neighbors:</p>
+<div class="eqbox">$$h_i^{\,\text{new}}
+   = g\big(\,[\,h_i,\ m_{\text{left}},\ m_{\text{right}}\,]\,\big)$$</div>
+<ul class="note">
+  <li>\(m_{\text{left}},\ m_{\text{right}}\) = the encoded messages from the left and
+      right neighbor cells.</li>
+  <li>\([\,\cdot,\ \cdot,\ \cdot\,]\) = concatenation (stack the three vectors into one);
+      \(g\) = the node-update MLP.</li>
+  <li>\(K\) = number of message-passing rounds. \(K = 1\) (one round) = each cell only
+      sees its immediate neighbors, which matches the conduction stencil (heat only flows
+      between touching cells). \(K = 2\) would let each cell reach two cells away (it
+      overfits here).</li>
+</ul>
+
+<h3>3. Predict the per-cell delta, then step</h3>
+<div class="eqbox">$$\Delta x_i = f_{\text{out}}(h_i)
+   \qquad
+   x_i^{\,\text{new}} = x_i + \Delta x_i$$</div>
+<ul class="note">
+  <li>\(f_{\text{out}}\) = the output MLP ("decoder"); \(\Delta x_i\) = the predicted
+      change in the cell's state over one step.</li>
+  <li>The model predicts the change in \([\,T,\ \rho_i\,]\) only; \(\rho\) and porosity
+      are derived from the new \(\rho_i\) via eq. (5).</li>
+  <li>\(x_i^{\,\text{new}} = x_i + \Delta x_i\) = add the change to get the next state, then
+      repeat — "rolling forward" in time, exactly like the solver rolls eq. (2).</li>
+</ul>
+
+<h3>4. Training losses (why it works)</h3>
+<p class="note">A <b>loss</b> \(\mathcal{L}\) is the error the model minimizes during
+training (smaller = closer to the true answer). \(\|\cdot\|^2\) = squared difference
+(mean-squared error); "pred" = model prediction, "true" = the solver's answer.</p>
+<div class="eqbox">$$\mathcal{L}_{\text{1-step}}
+   = \big\|\,\Delta x_i^{\text{pred}} - \Delta x_i^{\text{true}}\,\big\|^2$$</div>
+<p class="note">One-step loss: match the next-step change. Accurate per step, but
+small errors accumulate when you chain many steps.</p>
+<div class="eqbox">$$\mathcal{L}_{\text{rollout}}
+   = \sum_{m=1}^{M}\big\|\,x_i^{(m)\,\text{pred}} - x_i^{(m)\,\text{true}}\,\big\|^2
+   \qquad (M = 4)$$</div>
+<ul class="note">
+  <li>\(m\) = step number within a short rollout; \(M\) = how many steps you unroll
+      (here 4); \(x_i^{(m)}\) = the state after \(m\) steps.</li>
+  <li>This penalizes the whole multi-step trajectory, so the model learns to correct its
+      own accumulating error. This was the fix that made the surrogate usable.</li>
+</ul>
+
+<h2>The one correspondence to hold onto</h2>
+<table>
+  <tr><th></th><th>Solver, eq. (2)</th><th>GNN</th></tr>
+  <tr><td>Each cell updates from</td>
+      <td>\(\Delta T/\Delta x\) to neighbors</td>
+      <td>\([\,x_j-x_i,\ \Delta x\,]\) to neighbors</td></tr>
+  <tr><td>Using</td>
+      <td>hand-coded \(k,\ c_p\)</td>
+      <td>learned MLPs</td></tr>
+  <tr><td>Then</td>
+      <td>roll forward in time</td>
+      <td>roll forward in time</td></tr>
+</table>
+<div class="key">Same stencil, same inputs (neighbor difference + spacing), same
+roll-forward. One is physics, the other is fit. That is the whole mapping.</div>
+<p class="muted">Note on notation: \(x\) means position [m] in Part 1 (the physics),
+but the node <em>feature vector</em> in Part 2 (the GNN) — standard in each field, so
+both are kept. "Stencil" = the set of neighbors a cell's update depends on.</p>
+
+</body>
+</html>

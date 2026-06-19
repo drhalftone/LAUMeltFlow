@@ -30,6 +30,7 @@ import torch.nn as nn
 
 from .graph import to_neighbor_samples
 from .gnn_model import HeatMPGNN
+from .gnn_flux_model import HeatFluxMPGNN
 from .train_gnn import select_out_cols
 from .case import load_case
 from .pyrolysis import load_solid
@@ -126,6 +127,8 @@ def train(args):
         nfa.mean(0), nfa.std(0).clamp(min=1e-8),
         ea.mean(0), ea.std(0).clamp(min=1e-8),
         ta.mean(0), ta.std(0).clamp(min=1e-8))]
+    if args.flux:
+        stats[4] = torch.zeros_like(stats[4])               # flux: zero baseline
     node_std_out = stats[1][OUT_COLS]                       # for the loss scale
 
     # Physical constants for the derived quantities (from the case material).
@@ -136,8 +139,9 @@ def train(args):
     consts = (torch.tensor(solid.rho_w, dtype=torch.float32, device=device),
               solid.phi, case.phi_c, solid.rhov_bulk, solid.rhoc_bulk)
 
-    model = HeatMPGNN(node_dim=F, edge_dim=F + 1, output_dim=len(OUT_COLS),
-                      hidden_dim=args.hidden, n_message_passes=args.K).to(device)
+    Model = HeatFluxMPGNN if args.flux else HeatMPGNN
+    model = Model(node_dim=F, edge_dim=F + 1, output_dim=len(OUT_COLS),
+                  hidden_dim=args.hidden, n_message_passes=args.K).to(device)
     names = ["node_mean", "node_std", "edge_mean", "edge_std", "y_mean", "y_std"]
     for nm, buf in zip(names, stats):
         getattr(model, nm).copy_(buf)
@@ -209,7 +213,8 @@ def train(args):
     torch.save({"state_dict": model.state_dict(), "out_cols": OUT_COLS,
                 "feature_names": [str(x) for x in d["feature_names"]],
                 "hidden": args.hidden, "K": args.K, "node_dim": F,
-                "edge_dim": F + 1, "output_dim": len(OUT_COLS)}, out)
+                "edge_dim": F + 1, "output_dim": len(OUT_COLS),
+                "model_type": "flux" if args.flux else "direct"}, out)
     print(f"saved -> {out}")
 
 
@@ -228,5 +233,7 @@ if __name__ == "__main__":
     p.add_argument("--lr", type=float, default=3e-4)
     p.add_argument("--hidden", type=int, default=64)
     p.add_argument("--K", type=int, default=1)
+    p.add_argument("--flux", action="store_true",
+                   help="multi-step training for the conservative flux-form model")
     p.add_argument("--out", default="heat_python/models/heat_mpgnn_rollout.pt")
     train(p.parse_args())

@@ -334,9 +334,11 @@ reproducing Section~\ref{sec:aw2}; the flux-form stays bounded near 100--160~K
 throughout, roughly a $240\times$ reduction in end error, on a forcing it did not
 see in training. The conservative formulation removes the divergence. Two
 qualifications: a bounded error near 100~K on a 300--1500~K field is stable but
-not yet accurate ($\sim$10\%), and this is single-step training only; the
-multi-step rollout training that took the gas-off surrogate to single digits has
-not yet been applied. The remaining gap is accuracy, not stability.
+not yet accurate ($\sim$10\%). The accuracy gap is not closed by multi-step
+rollout training: applied to the flux-form variant on the eight-forcing sweep it
+lowers the training loss but worsens the held-out rollout to several hundred
+kelvin, overfitting only eight stiff trajectories where the gas-off result used
+twenty-four. The remaining gap is therefore training-data quantity, not stability.
 
 \subsection{Wall Time}
 The Fortran solver runs \texttt{aw2\_tc21} in about 3 minutes; the present
@@ -373,9 +375,11 @@ against a solver field.
 
 \section{Future Work}
 The conservative flux-form already removes the gas-case divergence
-(Section~\ref{sec:flux}); the remaining work is accuracy, not stability: apply the
-multi-step rollout training that helped the gas-off case, and make the model
-time-step aware with an adaptive schedule for the stiff aerothermal transient.
+(Section~\ref{sec:flux}); the remaining work is accuracy, not stability.
+Multi-step rollout training, which sharpened the gas-off case, overfits the
+present eight-forcing sweep, so the first step is a larger forcing sweep, then
+multi-step training, and a time-step-aware adaptive schedule for the stiff
+aerothermal transient.
 Beyond the gas case, training across a range of mesh resolutions would let one
 model run at resolutions it did not see; the surrogate's wall-time advantage over
 the solver should be measured across a design-relevant set of evaluations; and the

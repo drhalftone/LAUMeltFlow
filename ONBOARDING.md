@@ -1,5 +1,7 @@
 # LAUMeltFlow — Onboarding for Claude Code
 
+> ⚠️ **STALE / WRONG PROJECT (as of 2026-06-19).** This onboarding describes the **whip / ECE Symposium** subproject (April 2026) and its "read first" pointers send you there. The **current active work is the heat-shield GNN surrogate** — see **`CLAUDE.md`** (the authoritative, auto-loaded handoff) for current state and which docs to read. Use this file only for background on the older whip/Symposium thread.
+
 This is a multi-subproject research repo for **physics-informed machine learning surrogates**. The user is Grey Goodwin (UK ECE PhD researcher, advisor: Daniel L. Lau). Work centers on replacing expensive per-timestep FEA/physics computations with learned models — primarily GNN/MPGNN architectures.
 
 ## Repo Layout

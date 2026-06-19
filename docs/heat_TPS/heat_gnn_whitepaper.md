@@ -298,11 +298,14 @@ formulation removes the divergence.
 
 Two qualifications keep the result in scope. A bounded error near 100 K on a
 field that spans 300 to over 1500 K is stable but not yet accurate, of order ten
-percent. And this is single-step training only: the multi-step rollout training
-that took the gas-off surrogate from a drift of hundreds of kelvin to single
-digits (Section 4.2) has not been applied to the flux-form variant. The result
-establishes the conservative formulation as the structural fix the diagnosis
-pointed to, and locates the remaining gap in accuracy rather than stability.
+percent. And the accuracy gap is not closed by the multi-step rollout training
+that sharpened the gas-off case: applied to the flux-form variant on the
+eight-forcing sweep it lowers the training loss but worsens the held-out rollout
+to several hundred kelvin, overfitting only eight stiff trajectories where the
+gas-off result used twenty-four. The remaining gap is therefore one of
+training-data quantity, not of stability: the conservative formulation is the
+structural fix the diagnosis pointed to, and a larger forcing sweep is the route
+to accuracy.
 
 ### 4.5 Wall time
 
@@ -357,10 +360,11 @@ solver field and is worth carrying into the surrogate evaluation.
 - **Accurate gas-case surrogate from the flux-form.** The conservative flux-form
   of Section 3.5 already removes the gas-case divergence (Section 4.4), turning a
   rollout that reached tens of thousands of kelvin into one bounded near 100 K on
-  an unseen forcing [7], [8]. The remaining work is accuracy, not stability: apply
-  the multi-step rollout training that helped the gas-off case (Section 4.2), and
-  make the model time-step aware with an adaptive schedule so it can follow the
-  fast aerothermal transient that Section 4.3 identified.
+  an unseen forcing [7], [8]. The remaining work is accuracy, not stability.
+  Multi-step rollout training, which sharpened the gas-off case, overfits the
+  present eight-forcing sweep, so the first step is a larger forcing sweep, then
+  multi-step training, and a time-step-aware adaptive schedule for the fast
+  aerothermal transient that Section 4.3 identified.
 - **Mesh-resolution generalization.** Train across a range of mesh resolutions so
   that a single model runs at resolutions it did not see in training, exploiting
   the weight sharing the architecture already provides.

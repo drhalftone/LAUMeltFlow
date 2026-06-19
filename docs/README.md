@@ -367,3 +367,15 @@ See LICENSE file for details.
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
+## Acknowledgments
+
+This material is based upon work supported by the U.S. National Science Foundation
+under Grant No. 2230162, *Collaborative Research: CIF: Small: Hypergraph Signal
+Processing and Networks via t-Product Decompositions* (PI: Daniel L. Lau, University
+of Kentucky). This software was developed by Grey Goodwin as part of his M.S. research
+supported by this award.
+
+Any opinions, findings, and conclusions or recommendations expressed in this material
+are those of the author(s) and do not necessarily reflect the views of the National
+Science Foundation.

@@ -61,9 +61,9 @@ def main():
         out.mkdir(parents=True, exist_ok=True)
         err = np.abs(d["T_pred"][:, 1:-1] - d["T_gt"][:, 1:-1])
         static_heatmap(d["time"], d["T_gt"], d["T_pred"], x_mm,
-                       out / "rollout_spacetime.png", label=label)
+                       out / "spacetime.png", label=label)
         profile_animation(d["time"], d["T_gt"], d["T_pred"], x_mm,
-                          out / "rollout_profile.gif", label=label)
+                          out / "profile.gif", label=label)
         print(f"  -> {folder}  (mean |err| {err.mean():.1f} K)  [{label}]")
 
 

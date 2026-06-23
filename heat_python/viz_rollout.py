@@ -100,9 +100,9 @@ def main(args):
     out = Path(args.outdir)
     out.mkdir(parents=True, exist_ok=True)
     static_heatmap(d["time"], d["T_gt"], d["T_pred"], x_mm,
-                   out / "rollout_spacetime.png", label=args.label)
+                   out / "spacetime.png", label=args.label)
     profile_animation(d["time"], d["T_gt"], d["T_pred"], x_mm,
-                      out / "rollout_profile.gif", label=args.label)
+                      out / "profile.gif", label=args.label)
 
 
 if __name__ == "__main__":

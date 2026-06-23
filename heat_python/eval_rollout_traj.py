@@ -56,6 +56,7 @@ def main(args):
 
     state = gt[0].clone()
     pred_T = [state[:, 0].cpu().numpy()]
+    pred_rho = [state[:, rho_col].cpu().numpy()]
     for k in range(S - 1):
         state[0] = gt[k, 0]                       # re-impose ghosts from truth
         state[m - 1] = gt[k, m - 1]
@@ -71,13 +72,24 @@ def main(args):
         state = state.clone()
         state[1:m - 1] = new_int
         pred_T.append(state[:, 0].cpu().numpy())
+        pred_rho.append(state[:, rho_col].cpu().numpy())
 
     pred_T = np.stack(pred_T)
+    pred_rho = np.stack(pred_rho)
     T_gt = X[:, :, 0]
     err = np.abs(pred_T[:, 1:n + 1] - T_gt[:, 1:n + 1])
     t = traj["time"]
     print(f"\nROLLOUT vs solver ({S} steps over {t[-1]:.0f}s, {n} cells):")
     print(f"  interior T: mean |err| {err.mean():.2f} K   max {err.max():.2f} K")
+    # Hot-band metric: isolates the steep near-surface region the GNN undershoots.
+    # signed bias < 0 means the surrogate runs cooler than the solver there.
+    Ti = T_gt[:, 1:n + 1]
+    Pi = pred_T[:, 1:n + 1]
+    hot = Ti > 800.0
+    if hot.any():
+        signed = (Pi - Ti)[hot]
+        print(f"  hot band (T>800K): mean |err| {np.abs(Pi - Ti)[hot].mean():.2f} K"
+              f"   signed bias {signed.mean():+.2f} K   ({int(hot.sum())} samples)")
     for frac, lbl in [(0.1, "10%"), (0.5, "50%"), (1.0, "end")]:
         s = min(int(frac * (S - 1)), S - 1)
         print(f"  t={t[s]:6.1f}s ({lbl}): mean {err[s].mean():7.2f} K  max {err[s].max():8.2f} K")
@@ -86,7 +98,8 @@ def main(args):
         out = repo / args.save
         out.parent.mkdir(parents=True, exist_ok=True)
         np.savez_compressed(out, time=t, T_gt=T_gt, T_pred=pred_T, err=err,
-                            rho_gt=X[:, :, rho_col], rhov_bulk=rhov_b, rhoc_bulk=rhoc_b)
+                            rho_gt=X[:, :, rho_col], rho_pred=pred_rho,
+                            rhov_bulk=rhov_b, rhoc_bulk=rhoc_b)
         print(f"  saved -> {out}")
 
 

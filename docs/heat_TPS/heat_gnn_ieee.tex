@@ -311,7 +311,7 @@ conservative flux-form.}
 \centering
 \begin{tabular}{lrr}
 \toprule
- & Direct & Flux-form \\
+ & Direct & Flux-form (best run) \\
 \midrule
 Over the full 120~s rollout & 8755~K & 121~K \\
 At the end of the rollout    & 25434~K & 104~K \\
@@ -330,15 +330,60 @@ End-of-rollout maximum       & 38359~K & 312~K \\
 \end{figure}
 
 The direct model diverges to $\sim$25{,}000~K by the end of the rollout,
-reproducing Section~\ref{sec:aw2}; the flux-form stays bounded near 100--160~K
-throughout, roughly a $240\times$ reduction in end error, on a forcing it did not
-see in training. The conservative formulation removes the divergence. Two
-qualifications: a bounded error near 100~K on a 300--1500~K field is stable but
-not yet accurate ($\sim$10\%). The accuracy gap is not closed by multi-step
-rollout training: applied to the flux-form variant on the eight-forcing sweep it
-lowers the training loss but worsens the held-out rollout to several hundred
-kelvin, overfitting only eight stiff trajectories where the gas-off result used
-twenty-four. The remaining gap is therefore training-data quantity, not stability.
+reproducing Section~\ref{sec:aw2}; the flux-form, in its best run, stays bounded
+near 100--160~K throughout, roughly a $240\times$ reduction in end error, on a
+forcing it did not see in training. The conservative formulation removes the
+catastrophic divergence: the quiescent-cell bias that drove the direct model past
+$25{,}000$~K cannot arise by construction. That structural fix is the result that
+holds.
+
+The residual error is neither small nor consistent run to run; characterizing it
+honestly needs a distribution, since training is unseeded and closed-loop
+stability is sensitive to initialization. We trained eight seeds on each of two
+datasets and rolled each out on the same held-out forcing (Table~\ref{tab:seeds}).
+The single-step loss is nearly identical across seeds, so the variation is not in
+how well each learns the one-step map but in closed-loop stability: composing that
+map over hundreds of steps amplifies or damps small errors depending on the
+learned local gain, and the under-constrained post-cutoff cooldown sits on the
+knife edge. Every run is bounded through heating and the flux cutoff; the
+divergence, when it occurs, is in the long cooldown tail.
+
+\begin{table}[t]
+\caption{Held-out \texttt{aw2} mean interior $T$ error over eight random seeds,
+eight vs.\ twenty-four training forcings.}
+\label{tab:seeds}
+\centering
+\begin{tabular}{lrr}
+\toprule
+ & Eight forcings & Twenty-four forcings \\
+\midrule
+Mean across seeds      & 850~K       & 419~K \\
+Range (min--max)       & 155--2312~K & 203--543~K \\
+Seeds $>1000$~K        & 3 of 8      & 0 of 8 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+This reverses a conclusion drawn from three runs each: more data helps. The
+eight-forcing model has a heavy tail (up to 2312~K) and diverges in three of eight
+seeds; its 104~K run is the extreme good end of that spread, not a typical
+outcome. The twenty-four-forcing model is far more reliable: every seed lands in
+203--543~K, the mean is halved, the spread is about six times tighter, and no seed
+diverges. The extra forcings, varied in peak and cutoff time, fill input-space
+regions the eight-forcing set leaves sparse, constraining the one-step map toward
+a stable solution; the trade is bias-variance, more data buying reliability rather
+than the single lowest number. We report the twenty-four-forcing model, a
+dependable mean near 420~K, with 104~K noted as the best case. Two further levers
+failed: multi-step rollout training overfits the eight-forcing sweep (retrying it
+on the larger set is future work), and averaging models diverged
+($\approx$840~K) because the averaged update follows a closed-loop trajectory none
+of the individual models would, drifting off-manifold. Weighting the loss toward
+the steep-gradient surface cells, an attempt to correct a near-surface bias,
+destabilized the rollout once strong enough to matter, illustrating that the
+conservatism keeping the model bounded is in tension with tracking the surface.
+The structural divergence is solved; reliable long-horizon accuracy across the
+cooldown transient is a closed-loop stability problem that more data improves but
+ensembling, multi-step training, and loss reweighting do not.
 
 \subsection{Wall Time}
 The Fortran solver runs \texttt{aw2\_tc21} in about 3 minutes; the present
@@ -367,19 +412,31 @@ over a long rollout. A per-cell state-delta predictor learns local dynamics well
 but a fixed-step rollout is the wrong vehicle for a fast, localized forcing
 transient. The conservative flux-form, in which a uniform field produces exactly
 zero change by construction, removes the divergence (Section~\ref{sec:flux}): on
-the same held-out forcing the direct model runs past 25{,}000~K while the flux-form
-stays bounded near 100~K. Making it accurate, rather than only stable, remains
-open. The verification caution of Section~\ref{sec:aw1acc}, that a sampling layer
+the same held-out forcing the direct model runs past 25{,}000~K while the flux-form,
+in its best run, stays bounded near 100~K. Making it reliably accurate, rather than
+only structurally sound, remains open, and the spread is the honest measure. Over
+eight seeds the held-out error is initialization-sensitive, and more training data
+helps it directly: twenty-four forcings halve the mean error, tighten the spread
+about six-fold, and eliminate the divergent seeds of the eight-forcing model
+(Section~\ref{sec:flux}). What data does not buy is perfect accuracy; multi-step
+training, model averaging, and surface-weighted loss each failed or destabilized.
+The common thread is that the long cooldown transient sits at the edge of
+closed-loop stability, where more data moves the typical run safely inside but
+pinning every run there is unsolved. The verification caution of Section~\ref{sec:aw1acc}, that a sampling layer
 can mask or invent discrepancies, applies equally when comparing a surrogate field
 against a solver field.
 
 \section{Future Work}
 The conservative flux-form already removes the gas-case divergence
-(Section~\ref{sec:flux}); the remaining work is accuracy, not stability.
-Multi-step rollout training, which sharpened the gas-off case, overfits the
-present eight-forcing sweep, so the first step is a larger forcing sweep, then
-multi-step training, and a time-step-aware adaptive schedule for the stiff
-aerothermal transient.
+(Section~\ref{sec:flux}); the remaining work is reliable accuracy across
+initializations. The obvious levers make it worse, not better: a larger forcing
+sweep, multi-step rollout training, and model averaging each fail
+(Section~\ref{sec:flux}), pointing away from data quantity and toward the
+closed-loop stability of the cooldown transient. Directions not yet tried are a
+stability-aware objective that penalizes error growth over the rollout directly, a
+time-step-aware adaptive schedule for the stiff aerothermal transient, and
+predicting a time-rate that is then integrated, so the time-step enters explicitly
+rather than being baked into a fixed-step map.
 Beyond the gas case, training across a range of mesh resolutions would let one
 model run at resolutions it did not see; the surrogate's wall-time advantage over
 the solver should be measured across a design-relevant set of evaluations; and the
@@ -394,9 +451,13 @@ message-passing GNN surrogate that reproduces a held-out gas-off rollout to 7.6~
 On the gas case the direct surrogate diverges, a failure we trace to a fixed-step
 state-delta formulation; a conservative flux-form variant that predicts face fluxes
 removes the divergence and yields a bounded, if not yet accurate, rollout on an
-unseen forcing. Multi-step training and adaptive time-stepping for the flux-form
-model, mesh-resolution generalization, and extension to higher dimensions are the
-next steps.
+unseen forcing. Reliable cooldown-phase accuracy remains open and
+initialization-sensitive: more training data improves it markedly (halving the
+mean error over eight seeds and removing the divergent runs), but multi-step
+training, model averaging, and surface-weighted loss do not, locating the residual
+difficulty in closed-loop stability rather than data quantity. A stability-aware
+training objective, mesh-resolution generalization, and extension to higher
+dimensions are the next steps.
 
 \section*{Acknowledgment}
 This work builds on the reference heat-shield solver developed by Dr.\ Martin and

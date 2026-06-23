@@ -1,3 +1,11 @@
+# LaTeX build artifacts (keep .tex and .pdf, drop intermediates)
+*.aux
+*.bbl
+*.blg
+*.out
+*.synctex.gz
+docs/heat_TPS/*.log
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

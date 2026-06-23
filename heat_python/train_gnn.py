@@ -41,6 +41,10 @@ def select_out_cols(feat_names, predict_gas=True):
 
 def train(args):
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    if args.seed is not None:
+        torch.manual_seed(args.seed)
+        np.random.seed(args.seed)
+        print(f"seed={args.seed}")
     d = dict(np.load(args.data, allow_pickle=True))
     node_in = d["node_in"]            # (P, m, F)
     target_delta = d["target_delta"]  # (P, n, F)
@@ -152,7 +156,14 @@ def train(args):
                 yi = yi - eps / y_std_d
             opt.zero_grad()
             pred = model(nfi, lei, rei, has[idx], has[idx])
-            loss = loss_fn(pred, yi)
+            if args.loss_weight > 0:
+                # upweight cells with large true T-change (the steep surface
+                # transient), which an unweighted MSE under-fits because the
+                # many small-change bulk cells dominate the mean.
+                w = 1.0 + args.loss_weight * yi[:, 0].abs()
+                loss = (w[:, None] * (pred - yi) ** 2).mean()
+            else:
+                loss = loss_fn(pred, yi)
             if args.stayput > 0 and cold_idx.numel() > 0:
                 cb = cold_idx[torch.randint(cold_idx.numel(), (min(bs, cold_idx.numel()),),
                                             device=device)]
@@ -208,5 +219,10 @@ if __name__ == "__main__":
     p.add_argument("--flux", action="store_true",
                    help="use the conservative flux-form model (HeatFluxMPGNN): "
                         "predict face fluxes + a local source, zero baseline")
+    p.add_argument("--loss-weight", type=float, default=0.0,
+                   help="upweight large-T-change cells in the loss by "
+                        "1 + w*|target dT_norm|; fights surface undershoot. try 4-12")
+    p.add_argument("--seed", type=int, default=None,
+                   help="seed torch+numpy for reproducible init/shuffle")
     p.add_argument("--out", default="heat_python/models/heat_mpgnn.pt")
     train(p.parse_args())

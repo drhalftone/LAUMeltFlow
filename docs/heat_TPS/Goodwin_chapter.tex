@@ -1,0 +1,530 @@
+\documentclass[11pt]{report}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\graphicspath{{figs/}}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage[hidelinks]{hyperref}
+
+\title{A Physics-Informed Graph Neural Network Surrogate for a\\
+Charring-Ablator Material Response Solver}
+\author{Grey Goodwin}
+\date{}
+
+\begin{document}
+\maketitle
+
+\chapter{The Reference Solver}
+
+The surrogate developed in this work is trained on data produced by a
+one-dimensional finite-volume material-response solver for a charring ablator.
+The solver belongs to a well-established family. The coupled treatment of a
+decomposing solid and a chemically reacting boundary layer was set out in the
+Aerotherm charring-material ablation analysis~\cite{kendall1968part1,moyer1968cma},
+and that formulation still underlies current material-response codes such as
+FIAT~\cite{chen1999fiat}, CHAR~\cite{amar2016char}, and
+PATO~\cite{lachaud2014pato}. The particular solver used here shares its lineage
+with the material-response work of Martin and
+colleagues~\cite{martin2010nondarcian,weng2014pyrolysisgas,martin2015coupled}.
+
+This chapter states the physics that solver implements. The purpose is twofold.
+First, the equations below define what the surrogate is being asked to reproduce.
+Second, several of them are later built directly into the surrogate rather than
+learned, so they need to be stated precisely before that construction can be
+described.
+
+Every equation in this chapter is transcribed from the solver source rather than
+from a textbook. Where the implemented form departs from the form usually written
+in the literature, the implemented form is given and the departure is noted.
+
+\section{Domain and Discretization}
+
+The material is treated as a slab of thickness $L_0$ resolved by $N$ uniform
+finite-volume cells in the standard control-volume
+arrangement~\cite{patankar1980,versteeg2007fvm}. Cell centers are indexed
+$i = 1 \dots N$. Two ghost cells,
+indexed $0$ and $N+1$, sit outside the domain and carry the boundary conditions.
+The aerothermally heated surface is the right end of the domain at $x = L_0$, and
+the back face is the left end at $x = 0$.
+
+The cell width, face area, and cell volume are
+\begin{equation}
+\Delta x = \frac{L_0}{N}, \qquad
+dA_i = (2x_i)^{m}\,\pi^{m(3-m)/2}, \qquad
+dV_i = \frac{2^{m}\pi^{m(3-m)/2}}{m+1}\left(x_{i+1}^{m+1} - x_i^{m+1}\right),
+\end{equation}
+where $m = 0$, $1$, or $2$ selects Cartesian, cylindrical, or spherical geometry.
+All cases considered here use $m = 0$, so $dA_i = 1$ and $dV_i = \Delta x$.
+
+Two geometric coefficients recur in the flux terms,
+\begin{equation}
+\mathrm{FC}^-_i = \frac{2}{\Delta x_i + \Delta x_{i-1}}, \qquad
+\mathrm{FC}^+_i = \frac{2}{\Delta x_{i+1} + \Delta x_i},
+\end{equation}
+and a face-interpolation weight is used to reconstruct face values from cell
+values,
+\begin{equation}
+\mathrm{g}^-_i = \frac{\Delta x_{i-1}}{\Delta x_{i-1} + \Delta x_i}, \qquad
+\mathrm{g}^+_i = \frac{\Delta x_{i+1}}{\Delta x_i + \Delta x_{i+1}} .
+\end{equation}
+
+\section{Energy Equation}
+
+The solver does not advance temperature directly. It advances the total energy
+stored in each cell and then recovers temperature by inverting a nonlinear
+enthalpy relation. This distinction matters, because the material's heat capacity
+and its chemical state both change as it decomposes, and an enthalpy formulation
+carries the energy released by decomposition without a separate heat-of-pyrolysis
+term. The underlying in-depth energy balance for a decomposing ablator is the one
+derived in the charring-material ablation analysis~\cite{moyer1968cma}.
+
+The quantity conserved in each cell is
+\begin{equation}
+E_i = \underbrace{\rho_i\, h_s(T_i, \tau_i)\, dV_i}_{\text{solid sensible enthalpy}}
+    + \underbrace{\varphi_i\, \rho_g(T_i, p_{g,i})\, u_g(T_i)\, dV_i}_{\text{gas internal energy}},
+\label{eq:energy_state}
+\end{equation}
+where $\rho$ is the bulk solid density, $h_s$ the mass-specific sensible enthalpy
+of the solid, $\tau$ the char-progress variable defined in
+Section~\ref{sec:tau}, $\varphi$ the porosity, $\rho_g$ the pyrolysis-gas
+density, and $u_g$ the gas specific internal energy. The gas term is present only
+when gas-energy storage is enabled, which is the case for all runs used here.
+
+Over one time step the cell energy changes by conduction across its two faces, by
+advection of pyrolysis gas, and by the change in chemical state,
+\begin{equation}
+E_i^{n+1} = E_i^{n}
+  + \Delta t \Big[ \underbrace{-F^-_i\, dA_i + F^+_i\, dA_{i+1}}_{\text{net conduction}}
+  - \underbrace{\left(H_{i+1} - H_i\right)}_{\text{gas advection}} \Big]
+  + E^{\mathrm{chem}}_i .
+\label{eq:energy_update}
+\end{equation}
+
+The conduction fluxes are evaluated from temperature differences across faces
+using the face conductivity defined below,
+\begin{equation}
+F^-_i = k_{f,i}\,\mathrm{FC}^-_i\,(T_i - T_{i-1}), \qquad
+F^+_i = k_{f,i+1}\,\mathrm{FC}^+_i\,(T_{i+1} - T_i).
+\end{equation}
+
+The advected quantity is the enthalpy carried by the pyrolysis gas crossing each
+face,
+\begin{equation}
+H_i = \dot m_i\, h_g(T_{f,i}), \qquad
+T_{f,i} = T_{i-1} + (T_i - T_{i-1})\,\mathrm{g}^-_i ,
+\end{equation}
+where $\dot m_i$ is the gas mass flux at face $i$ from Section~\ref{sec:gas} and
+$h_g$ is the gas enthalpy relative to the reference temperature. At an open
+boundary the advected enthalpy is set to zero when the flux is directed inward,
+so that ambient gas does not carry spurious enthalpy into the domain.
+
+The chemical term is the change in the blended formation enthalpy as the solid
+decomposes,
+\begin{equation}
+E^{\mathrm{chem}}_i = \Big[\rho_i^{n+1} h_{s,\mathrm{form}}(\tau_i^{n+1})
+  - \rho_i^{n} h_{s,\mathrm{form}}(\tau_i^{n})\Big] dV_i .
+\label{eq:echem}
+\end{equation}
+This is the only route by which pyrolysis energy enters the balance. There is no
+explicit $\dot\rho\,\Delta h_{\mathrm{pyro}}$ source. The heat of pyrolysis is
+implicit in the offset between the virgin and char enthalpy curves at the
+reference temperature, and it is released as $\tau$ evolves.
+
+In continuous form, Equations~\eqref{eq:energy_state} through \eqref{eq:echem}
+discretize
+\begin{equation}
+\frac{\partial}{\partial t}\Big[\rho\,h_s(T,\tau) + \varphi\,\rho_g u_g\Big]
+= \frac{1}{dV}\frac{\partial}{\partial x}\!\left(A\,k_{\mathrm{mix}}\frac{\partial T}{\partial x}\right)
+- \frac{\partial}{\partial x}\!\left(\dot m''\, h_g\right)
+- \frac{\partial}{\partial t}\Big[\rho\,h_{s,\mathrm{form}}(\tau)\Big].
+\label{eq:energy_continuous}
+\end{equation}
+
+\subsection{Face Conductivity}
+
+The conductivity at a face is not an average of the two neighboring cell
+conductivities. The material state is interpolated to the face first, and the
+conductivity function is then evaluated once at that interpolated state,
+\begin{equation}
+\rho_{f,i} = \tfrac12\left(\rho_{i-1} + \rho_i\right), \qquad
+T_{f,i} = T_i + (T_{i-1} - T_i)\,\mathrm{g}^+_{i-1},
+\end{equation}
+\begin{equation}
+k_{f,i} = \tau_{f,i}\, k_v(T_{f,i}) + \left(1 - \tau_{f,i}\right) k_c(T_{f,i}),
+\qquad \tau_{f,i} = \tau(\rho_{f,i}).
+\label{eq:kface}
+\end{equation}
+The density used in Equation~\eqref{eq:kface} is the density at the start of the
+step, before the pyrolysis update. Using the updated density here biases the
+conductivity in hot cells where decomposition is fast.
+
+\subsection{Temperature Recovery}
+
+Equation~\eqref{eq:energy_update} gives the new cell energy. Temperature is
+recovered from it by a local Newton iteration, since $h_s$ depends nonlinearly on
+$T$. A predictor is formed first,
+\begin{equation}
+T^{(0)}_i = T^n_i + \alpha_i\left(\text{net flux} - \text{advection}\right),
+\qquad
+\alpha_i = \frac{\Delta t / dV_i}{\rho^{n+1}_i c_{p,\mathrm{mix}}(T^n_i, \bar\tau_i)
+  + \bar\varphi_i \rho_g c_{v,g}},
+\end{equation}
+and is then corrected by
+\begin{equation}
+T^{(m+1)}_i = T^{(m)}_i +
+\frac{E^{n+1}_i - \left[\rho^{n+1}_i h_s(T^{(m)}_i, \tau^{n+1}_i)
+  + \varphi^{n+1}_i \rho_g u_g\right] dV_i}
+{\left[\rho^{n+1}_i c_{p,\mathrm{mix}}(T^{(m)}_i, \tau^{n+1}_i)
+  + \varphi^{n+1}_i \rho_g c_{v,g}\right] dV_i}.
+\label{eq:newton}
+\end{equation}
+The correction is applied a fixed three times with no convergence test, and the
+result is clipped to the temperature range spanned by the property tables.
+
+\subsection{Time Step}
+
+The conduction fluxes and the decomposition rates are both evaluated at the
+temperature at the start of the step, so the scheme is explicit. An explicit
+scheme for a diffusion problem is stable only below a step size that scales with
+the square of the mesh spacing~\cite{morton2005pde}. The step size is
+set once at startup from that stability estimate,
+\begin{equation}
+\Delta t = \frac{1}{\mathrm{CFL}} \cdot
+\frac{\Delta x_{\max}^2\, \rho_{v,\mathrm{bulk}}\, c_{p,\mathrm{mix}}(600\,\mathrm{K}, \tau_{\mathrm{init}})}
+{2\, k_{\mathrm{mix}}(600\,\mathrm{K}, \tau_{\mathrm{init}})} .
+\label{eq:dt}
+\end{equation}
+Three properties of Equation~\eqref{eq:dt} are worth stating plainly. The
+parameter $\mathrm{CFL}$ appears in the denominator, so it is a safety divisor
+rather than a Courant number, and a larger value gives a smaller step. The
+material properties are frozen at $600$~K and at the fully virgin state. The step
+is computed once and never adapted, and the only per-step modification is a
+clipping so that the step lands exactly on the final time or on the next
+breakpoint in a boundary-condition table.
+
+Because $\Delta t \propto \Delta x^2$, the step count for a fixed physical
+duration grows quadratically with mesh resolution. This is the cost the surrogate
+is intended to avoid.
+
+\section{Pyrolysis}
+
+The solid is represented as a set of $N_s$ species that decompose independently.
+Each species $k$ has an intrinsic virgin density $\rho_{v,k}$, an intrinsic char
+density $\rho_{c,k}$, a pre-exponential factor $A_k$, a reaction order $\psi_k$,
+an activation temperature $E_k$, and a mass-fraction weight $\gamma_k$. This
+multi-species Arrhenius description of resin decomposition follows the classical
+kinetics measured for phenolic and nylon-phenolic
+composites~\cite{goldstein1969kinetics}. The material used here is
+TACOT~\cite{lachaud2012tacot}, a reference composite defined for code comparison,
+with three species of which two are reactive and one is inert.
+
+The decomposition state of species $k$ is the normalized reactive mass fraction
+\begin{equation}
+W_k = \mathrm{clip}\!\left(\frac{\rho_{i,k} - \rho_{c,k}}{\rho_{v,k}},\, 0,\, 1\right),
+\end{equation}
+which obeys the rate law
+\begin{equation}
+\frac{dW_k}{dt} = -A_k\, W_k^{\psi_k}\, \exp\!\left(-\frac{E_k}{T}\right).
+\label{eq:arrhenius}
+\end{equation}
+Note that $E_k$ is stored already divided by the universal gas constant, so it
+carries units of kelvin and no gas constant appears in
+Equation~\eqref{eq:arrhenius}.
+
+Equation~\eqref{eq:arrhenius} is not integrated numerically. It is solved in
+closed form over the step at frozen temperature,
+\begin{equation}
+W^{n+1}_k =
+\begin{cases}
+W_k \exp\!\left[-A_k \Delta t\, e^{-E_k/T}\right], & \psi_k = 1, \\[8pt]
+\left[\max\!\left(0,\; W_k^{1-\psi_k} - \Delta t\,(1-\psi_k) A_k e^{-E_k/T}\right)\right]^{\frac{1}{1-\psi_k}},
+& \psi_k \neq 1 .
+\end{cases}
+\label{eq:arrhenius_closed}
+\end{equation}
+The species density is then recovered as
+$\rho^{n+1}_{i,k} = \rho_{c,k} + \rho_{v,k} W^{n+1}_k$, and the bulk density and
+the volumetric gas source follow by summation over species,
+\begin{equation}
+\rho = \sum_{k=1}^{N_s} (1-\varphi_v)\,\gamma_k\, \rho_{i,k},
+\qquad
+\dot\omega_g = \sum_{k=1}^{N_s} (1-\varphi_v)\,\gamma_k\,
+\frac{\max\!\left(0,\, \rho^{n}_{i,k} - \rho^{n+1}_{i,k}\right)}{\Delta t}.
+\label{eq:gas_source}
+\end{equation}
+The mass lost by the solid becomes the pyrolysis gas that the transport equations
+of Section~\ref{sec:gas} carry out through the char.
+
+Equation~\eqref{eq:arrhenius_closed} has no activation threshold. A minimum
+reaction temperature is present in the material file and is read by the solver,
+but it is never applied, so decomposition proceeds at the Arrhenius rate at all
+temperatures.
+
+\section{Char State and Material Properties}
+\label{sec:tau}
+
+Two distinct measures of decomposition are used, and they are not
+interchangeable.
+
+The first is the char-progress variable $\tau$, which drives the thermal
+properties. It equals one in virgin material and zero in fully charred material.
+It is computed after removing the inert species, whose density never changes and
+would otherwise compress the range,
+\begin{equation}
+\rho_{\mathrm{inert}} = \rho_{v,\mathrm{bulk}}
+\frac{\sum_{k \in \mathcal{I}} \rho_{v,k}}{\sum_{k} \rho_{v,k}},
+\qquad
+\mathcal{I} = \left\{k : \rho_{v,k} = \rho_{c,k}\right\},
+\end{equation}
+\begin{equation}
+\tau = \mathrm{clip}\!\left[
+\frac{1 - \rho_{cr}/\rho_r}{1 - \rho_{cr}/\rho_{vr}},\, 0,\, 1\right],
+\label{eq:tau}
+\end{equation}
+where $\rho_{vr}$, $\rho_{cr}$, and $\rho_r$ are the virgin, char, and current
+bulk densities with the inert contribution subtracted.
+
+The second is the linear char fraction $\beta$, which drives porosity and
+permeability. It is the degree-of-char variable used in the material-response
+literature~\cite{amar2016char},
+\begin{equation}
+\beta = \mathrm{clip}\!\left[
+\frac{\rho_{v,\mathrm{bulk}} - \rho}{\rho_{v,\mathrm{bulk}} - \rho_{c,\mathrm{bulk}}},\, 0,\, 1\right].
+\label{eq:beta}
+\end{equation}
+Porosity is interpolated linearly in $\beta$ between the virgin and char values,
+\begin{equation}
+\varphi = \mathrm{clip}\left[\varphi_v + (\varphi_c - \varphi_v)\beta,\;
+\varphi_{\min},\, \varphi_{\max}\right].
+\end{equation}
+
+Thermal conductivity and specific heat are blended linearly in $\tau$ between
+separately tabulated virgin and char curves, each of which is a function of
+temperature. Tabulating virgin and char properties separately and interpolating
+on char state is the standard treatment for a low-density carbon-phenolic
+ablator~\cite{milos2010pica},
+\begin{equation}
+k_{\mathrm{mix}}(T,\tau) = \tau\, k_v(T) + (1-\tau)\, k_c(T),
+\qquad
+c_{p,\mathrm{mix}}(T,\tau) = \tau\, c_{p,v}(T) + (1-\tau)\, c_{p,c}(T).
+\label{eq:mixing}
+\end{equation}
+
+The sensible enthalpy is built from the same tables but is referenced so that it
+vanishes at the reference temperature for every char state,
+\begin{equation}
+h_{s,\mathrm{form}}(\tau) = \tau\, e_v(T_{\mathrm{ref}}) + (1-\tau)\, e_c(T_{\mathrm{ref}}),
+\end{equation}
+\begin{equation}
+h_{s}(T,\tau) = \tau\, e_v(T) + (1-\tau)\, e_c(T) - h_{s,\mathrm{form}}(\tau),
+\label{eq:hs}
+\end{equation}
+where $e_v$ and $e_c$ are the integrated heat capacities
+$e(T) = \int^{T} c_p(T')\,dT'$ of the virgin and char material. Equation
+\eqref{eq:hs} gives $h_s(T_{\mathrm{ref}}, \tau) = 0$ for all $\tau$, which is
+what makes the formation term of Equation~\eqref{eq:echem} the sole carrier of
+the pyrolysis energy.
+
+The surface emissivity is blended in $\tau$ in the same way,
+$\varepsilon = \tau \varepsilon_v + (1-\tau)\varepsilon_c$.
+
+\section{Pyrolysis-Gas Transport}
+\label{sec:gas}
+
+The gas generated by Equation~\eqref{eq:gas_source} percolates out through the
+porous char toward the heated surface. The solver treats this as quasi-steady
+Darcy flow, which is the usual momentum closure for pyrolysis gas in a charring
+ablator~\cite{weng2014pyrolysisgas}. There is no gas momentum equation and no
+transient gas-mass matrix, so the pressure field is re-solved from scratch at
+every step.
+
+Darcy's law, which follows from volume-averaging creeping flow through a porous
+medium~\cite{whitaker1986darcy}, relates the gas mass flux to the pressure
+gradient,
+\begin{equation}
+\dot m'' = -\frac{K_0 \rho_g}{\mu} \frac{\partial p_g}{\partial x},
+\label{eq:darcy}
+\end{equation}
+which discretizes to a conductance form on the mesh,
+\begin{equation}
+\dot m_i = -C_i \left(p_{g,i} - p_{g,i-1}\right),
+\qquad
+C_i = \frac{K_{0,i}\, \rho_g(T_{f,i}, p_{f,i})\, dA_i}
+{\mu(T_{f,i}) \cdot \tfrac12\left(\Delta x_{i-1} + \Delta x_i\right)} .
+\label{eq:darcy_discrete}
+\end{equation}
+The permeability is blended between its virgin and char values using the linear
+char fraction of Equation~\eqref{eq:beta} rather than $\tau$,
+\begin{equation}
+K_0 = (1 - \beta_f) K_{0,v} + \beta_f K_{0,c} .
+\end{equation}
+No Klinkenberg slip correction or Forchheimer inertial term is included. Departures
+from Darcy behavior can matter for pyrolysis gas at low pressure and high
+flux~\cite{martin2010nondarcian}, and neglecting them is a modeling choice
+inherited from the reference implementation.
+
+Gas mass conservation closes the system,
+\begin{equation}
+\frac{\partial (\varphi \rho_g)}{\partial t} + \frac{\partial \dot m''}{\partial x}
+= \dot\omega_g ,
+\end{equation}
+which is discretized with the storage term moved to the right-hand side so that
+the remaining balance is steady,
+\begin{equation}
+\dot m_{i+1} - \dot m_i = \dot\omega_{\mathrm{net},i}\, dV_i,
+\qquad
+\dot\omega_{\mathrm{net},i} = \dot\omega_{g,i}
+- \frac{\left(\varphi \rho_g\right)^{n}_i - \left(\varphi \rho_g\right)^{n-1}_i}{\Delta t}.
+\label{eq:gas_mass}
+\end{equation}
+
+For the boundary configuration used in all cases considered here, the back face
+is sealed and the heated surface is open to the ambient pressure. Equation
+\eqref{eq:gas_mass} then admits a direct march with no linear solve,
+\begin{equation}
+\dot m_1 = 0, \qquad
+\dot m_{i+1} = \dot m_i + \dot\omega_{\mathrm{net},i}\, dV_i,
+\end{equation}
+\begin{equation}
+p_{g,N+1} = p_{\mathrm{amb}}(t), \qquad
+p_{g,i-1} = p_{g,i} + \frac{\dot m_i}{C_i} .
+\end{equation}
+For other boundary combinations the same conductances assemble a tridiagonal
+system in $p_g$ that is solved directly. The ambient pressure is time-varying and
+is taken from the aerothermal table.
+
+The gas is treated as ideal with tabulated, temperature-dependent properties,
+\begin{equation}
+\rho_g(T, p) = \frac{p}{R(T)\,\max(T, 250\,\mathrm{K})},
+\qquad
+c_{v,g} = c_{p,g}(T) - R(T),
+\end{equation}
+where the floor on temperature in the denominator is a numerical guard carried
+over from the reference implementation.
+
+\section{Boundary Conditions}
+
+Boundary conditions are imposed by setting the ghost-cell temperatures so that
+the reconstructed face gradient carries the prescribed flux.
+
+\subsection{Aerothermal Surface}
+
+At the heated surface the net flux into the wall is the sum of convective
+heating, incident radiation, and the enthalpy carried by pyrolysis gas leaving the
+surface, less the energy re-radiated away. This is the surface energy balance of
+the charring-material ablation analysis~\cite{moyer1968cma}, and it is what
+couples the in-depth solution to the external
+aerothermodynamics~\cite{martin2015coupled},
+\begin{equation}
+q_w = \underbrace{\left(\rho_e u_e C_H\right) \Phi \left(h_r - h_w\right)}_{\text{convective}}
+    + \underbrace{q_{\mathrm{rad}}}_{\text{incident}}
+    + \underbrace{\frac{\dot m_{N+1}}{dA_{N+1}}\left(h_g^{\mathrm{abs}}(T_w) - h_w\right)}_{\text{pyrolysis gas}}
+    - \underbrace{\varepsilon \sigma \left(T_w^4 - T_{\mathrm{ext}}^4\right)}_{\text{re-radiation}} ,
+\label{eq:surface_balance}
+\end{equation}
+where $\rho_e u_e C_H$ is the heat-transfer coefficient, $h_r$ the recovery
+enthalpy, $h_w$ the wall enthalpy, $\sigma$ the Stefan-Boltzmann constant, and
+$T_w$ the wall temperature. The coefficients $\rho_e u_e C_H$, $h_r$,
+$q_{\mathrm{rad}}$, and $T_{\mathrm{ext}}$ are interpolated in time from a
+boundary-layer table.
+
+The factor $\Phi$ is the blowing correction, which accounts for the way gas
+leaving the surface thickens the boundary layer and reduces the convective heat
+transfer~\cite{moyer1968cma}. The reference implementation evaluates it in the
+exponential form
+\begin{equation}
+\varphi_b = \frac{2\lambda\, \dot m''_w}{\left(\rho_e u_e C_H\right)_0},
+\qquad
+\Phi = \frac{\varphi_b}{e^{\varphi_b} - 1} ,
+\label{eq:blowing}
+\end{equation}
+with $\lambda$ a tabulated blowing parameter. The limit $\Phi \to 1$ as
+$\varphi_b \to 0$ recovers the unblown heat transfer, and the implementation uses
+a series expansion in that limit to avoid the removable singularity.
+
+The wall enthalpy $h_w$ is not computed from a chemistry model at run time. It is
+read from precomputed surface-thermochemistry tables indexed by the wall
+temperature and by the dimensionless blowing rate. Such tables are generated by an
+equilibrium surface-thermochemistry solution~\cite{kendall1968ace}, and the
+underlying mass and energy balance that defines $B'$ has since been derived from
+first principles~\cite{padovan2024bprime},
+\begin{equation}
+B'_g = \frac{\dot m_{N+1} / dA_{N+1}}{\left(\rho_e u_e C_H\right)_0 \Phi},
+\qquad
+h_w = h_w\!\left(T_w,\, B'_g\right),
+\label{eq:bprime}
+\end{equation}
+interpolated bilinearly and clamped outside the tabulated range. Only the
+tables at one ambient pressure are read, so there is no pressure interpolation of
+the surface chemistry.
+
+Finally the ghost temperature is set so the face gradient carries $q_w$,
+\begin{equation}
+T_{N+1} = T_N + \frac{q_w}{k_{\mathrm{mix}}}\, \Delta x_N .
+\end{equation}
+
+For the gas-off case the surface condition is instead a prescribed wall-temperature
+history imposed as a Dirichlet condition, $T_{N+1} = 2 T_w(t) - T_N$.
+
+\subsection{Back Face}
+
+The back face is adiabatic in all cases considered here. The applied flux is zero
+and the back-face re-radiation term is disabled in the reference implementation,
+so the ghost temperature simply mirrors the interior,
+\begin{equation}
+T_0 = T_1 - \frac{q_{w,0}}{k_{\mathrm{mix}}}\, \Delta x_1, \qquad q_{w,0} = 0 .
+\end{equation}
+
+\section{Step Ordering}
+
+The order of operations within one step is fixed and is worth recording, because
+the surrogate reproduces the same sequence. The step size is selected, the ambient
+pressure is evaluated, the boundary conditions are applied to set the ghost cells,
+the species are advanced by Equation~\eqref{eq:arrhenius_closed}, the gas system of
+Equation~\eqref{eq:gas_mass} is solved, the face conductivities of
+Equation~\eqref{eq:kface} are formed, the cell energies are updated by
+Equation~\eqref{eq:energy_update}, and the temperature is recovered by
+Equation~\eqref{eq:newton}. The surface boundary condition at step $n$ uses the
+gas mass flux computed at step $n-1$, which is an explicit lag inherited from the
+reference implementation.
+
+\section{Scope and Limitations}
+
+Several features that appear in the broader charring-ablator literature are
+absent from the solver used here, and the surrogate therefore inherits their
+absence. They are listed in Table~\ref{tab:limitations}.
+
+\begin{table}[H]
+\centering
+\caption{Physics present in the reference implementation but not exercised in
+this work, or absent entirely.}
+\label{tab:limitations}
+\begin{tabular}{ll}
+\toprule
+Feature & Status \\
+\midrule
+In-depth radiative transport & Not implemented. Radiation enters only at the surface. \\
+Surface recession & Not implemented. The mesh is fixed. \\
+Species activation threshold & Read from the material file, never applied. \\
+Pressure-dependent surface chemistry & Only one ambient-pressure table is read. \\
+Gas momentum and inertia & Quasi-steady Darcy only. \\
+Adaptive time stepping & Step size fixed at startup. \\
+Non-uniform mesh & Uniform spacing only. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The one-dimensional restriction is the most consequential of these. Heat and
+pyrolysis gas are resolved only through the thickness, so lateral conduction and
+in-plane gas motion are absent. Two-dimensional and fully three-dimensional
+material-response codes exist~\cite{chen2001titan,amar2016char,lachaud2014pato},
+and extending the surrogate to their meshes is left to future work. The choice is
+deliberate here. A one-dimensional solver is cheap enough to generate the large
+training sets this work requires, which makes it a tractable testbed for the
+surrogate method.
+
+\bibliographystyle{unsrt}
+\bibliography{heat_gnn_refs}
+
+\end{document}

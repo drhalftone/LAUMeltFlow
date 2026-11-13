@@ -1,0 +1,379 @@
+<title>Boxes and Tents</title>
+<style>
+  :root {
+    --bg: #F2F4F7;
+    --surface: #FFFFFF;
+    --ink: #12181F;
+    --ink-soft: #55606E;
+    --ink-faint: #7C8794;
+    --rule: #D5DCE4;
+    --hot: #C2521C;
+    --hot-soft: #E8B394;
+    --cool: #1C6E7E;
+    --cool-soft: #9BC7CF;
+    --exact: #97A1AE;
+    --grid: #E4E9EF;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0E1319;
+      --surface: #161D25;
+      --ink: #E6EBF1;
+      --ink-soft: #9AA6B4;
+      --ink-faint: #78848F;
+      --rule: #2A343F;
+      --hot: #E8823F;
+      --hot-soft: #7A4526;
+      --cool: #4FB3C6;
+      --cool-soft: #245A66;
+      --exact: #6C7783;
+      --grid: #1D262F;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0E1319;
+    --surface: #161D25;
+    --ink: #E6EBF1;
+    --ink-soft: #9AA6B4;
+    --ink-faint: #78848F;
+    --rule: #2A343F;
+    --hot: #E8823F;
+    --hot-soft: #7A4526;
+    --cool: #4FB3C6;
+    --cool-soft: #245A66;
+    --exact: #6C7783;
+    --grid: #1D262F;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: Georgia, "Iowan Old Style", "Times New Roman", serif;
+    font-size: 17px;
+    line-height: 1.65;
+    margin: 0;
+    padding: 4rem 1.5rem 6rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2.5rem;
+  }
+
+  .col { width: 100%; max-width: 40rem; display: flex; flex-direction: column; gap: 1.15rem; }
+  .wide { width: 100%; max-width: 58rem; }
+
+  h1, h2, h3, .label, .legend, figcaption, th, .pill {
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+
+  h1 {
+    font-size: clamp(2.1rem, 6vw, 3.1rem);
+    font-weight: 800;
+    letter-spacing: -0.035em;
+    line-height: 1.05;
+    text-wrap: balance;
+    margin: 0;
+  }
+  .standfirst {
+    font-size: 1.14rem;
+    color: var(--ink-soft);
+    margin: 0;
+    text-wrap: balance;
+  }
+  h2 {
+    font-size: 1.45rem;
+    font-weight: 750;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+    margin: 1.6rem 0 0;
+  }
+  h2 .marker { color: var(--ink-faint); font-weight: 600; margin-right: 0.5rem; }
+  h2.fvm { color: var(--hot); }
+  h2.fem { color: var(--cool); }
+
+  p { margin: 0; }
+  strong { font-weight: 700; }
+
+  .label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  code, .eq {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.92em;
+  }
+  .eq {
+    display: block;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--accent, var(--rule));
+    border-radius: 3px;
+    padding: 0.85rem 1rem;
+    font-size: 0.88rem;
+    line-height: 1.7;
+    overflow-x: auto;
+    white-space: pre;
+    color: var(--ink);
+  }
+  .eq.hot { --accent: var(--hot); }
+  .eq.cool { --accent: var(--cool); }
+
+  figure {
+    margin: 0;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 1.5rem 1.25rem 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+  }
+  .svg-wrap { width: 100%; overflow-x: auto; }
+  svg { display: block; width: 100%; height: auto; min-width: 460px; }
+  figcaption {
+    font-size: 0.83rem;
+    line-height: 1.55;
+    color: var(--ink-soft);
+    border-top: 1px solid var(--rule);
+    padding-top: 0.8rem;
+  }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 1.1rem; font-size: 0.78rem; color: var(--ink-soft); }
+  .legend span { display: inline-flex; align-items: center; gap: 0.42rem; }
+  .swatch { width: 15px; height: 3px; border-radius: 2px; flex: none; }
+
+  /* SVG element styling via tokens */
+  .ax { stroke: var(--rule); stroke-width: 1.2; }
+  .gridline { stroke: var(--grid); stroke-width: 1; }
+  .exact-curve { fill: none; stroke: var(--exact); stroke-width: 2.4; }
+  .exact-dash { fill: none; stroke: var(--exact); stroke-width: 2; stroke-dasharray: 5 4; }
+  .cellbox { fill: none; stroke: var(--hot-soft); stroke-width: 1.1; }
+  .cellfill { fill: var(--hot); opacity: 0.10; }
+  .step { fill: none; stroke: var(--hot); stroke-width: 2.8; stroke-linecap: round; }
+  .flux { stroke: var(--hot); stroke-width: 2; }
+  .fem-line { fill: none; stroke: var(--cool); stroke-width: 2.8; stroke-linejoin: round; }
+  .fem-node { fill: var(--cool); }
+  .tent { fill: none; stroke: var(--cool); stroke-width: 1.8; }
+  .tent-fill { fill: var(--cool); opacity: 0.13; }
+  .vline { stroke: var(--cool-soft); stroke-width: 1; stroke-dasharray: 3 3; }
+  .svgtext { font-family: ui-sans-serif, system-ui, sans-serif; font-size: 12px; fill: var(--ink-soft); }
+  .svgtext.tiny { font-size: 10.5px; fill: var(--ink-faint); }
+  .svgtext.hotlab { fill: var(--hot); font-weight: 650; }
+  .svgtext.coollab { fill: var(--cool); font-weight: 650; }
+  .svgtext.mono { font-family: ui-monospace, Menlo, Consolas, monospace; }
+
+  table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 0.62rem 0.7rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  th { font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); font-weight: 700; }
+  td:first-child { color: var(--ink-soft); width: 27%; }
+  .th-fvm { color: var(--hot); }
+  .th-fem { color: var(--cool); }
+
+  .kicker {
+    border-left: 3px solid var(--rule);
+    padding: 0.15rem 0 0.15rem 1rem;
+    color: var(--ink-soft);
+    font-style: italic;
+  }
+</style>
+
+<header class="col">
+  <p class="label">Finite volume vs finite element</p>
+  <h1>Boxes and Tents</h1>
+  <p class="standfirst">Two ways to turn a smooth temperature field into a finite list of numbers. Same bar, same physics, completely different bookkeeping.</p>
+</header>
+
+<section class="col">
+  <h2>The problem both methods solve</h2>
+  <p>Heat flows into one face of a slab. The temperature inside varies continuously with depth, meaning it has a value at every one of infinitely many points. A computer cannot store infinitely many numbers, so before anything can be solved, the continuous field has to be replaced by a finite set of unknowns.</p>
+  <p>That replacement step is called <strong>discretization</strong>, and it is the only thing separating the two methods below. They disagree about what the finite numbers should <em>mean</em>.</p>
+</section>
+
+<figure class="wide">
+  <div class="svg-wrap">
+    <svg viewBox="0 0 720 250" role="img" aria-label="A continuous temperature profile through a slab, hot at the right face">
+      <line class="ax" x1="60" y1="215" x2="680" y2="215"/>
+      <line class="ax" x1="60" y1="215" x2="60" y2="30"/>
+      <polyline class="exact-curve" points="60,200 120,199.8 180,198.8 240,195.8 300,190.1 360,180.6 420,166.5 480,146.8 540,120.6 600,87 660,45"/>
+      <text class="svgtext" x="52" y="40" text-anchor="end">hot</text>
+      <text class="svgtext" x="52" y="205" text-anchor="end">cold</text>
+      <text class="svgtext" x="30" y="130" text-anchor="middle" transform="rotate(-90 30 130)">temperature</text>
+      <text class="svgtext" x="60" y="236">back face</text>
+      <text class="svgtext" x="660" y="236" text-anchor="end">heated surface</text>
+      <text class="svgtext tiny" x="370" y="236" text-anchor="middle">depth through the slab</text>
+      <text class="svgtext" x="470" y="95">the exact solution</text>
+      <text class="svgtext tiny" x="470" y="112">defined at every point</text>
+    </svg>
+  </div>
+  <figcaption>The temperature profile through a heat shield. Heat enters at the right face and penetrates inward, so the field is steep near the surface and nearly flat deep in the material. This curve is what both methods are trying to represent with a handful of numbers.</figcaption>
+</figure>
+
+<section class="col">
+  <h2 class="fvm"><span class="marker">1</span>Finite volume: boxes and fluxes</h2>
+  <p>Cut the slab into boxes. Each box stores <strong>one number</strong>, understood as the average temperature over that box. Not a value at a point, an average over a region.</p>
+  <p>Then ask a bookkeeping question about each box: how much heat crossed each of its two faces? Here the heated surface is on the right, so heat travels leftward into the material. A box takes heat in at its right face and passes it out at its left. The stored energy changes by the difference, plus anything generated inside.</p>
+  <span class="eq hot">energy change in box i  =  (heat in at right face)
+                        −  (heat out at left face)
+                        +  (heat made inside)</span>
+  <p>No derivative was ever written down. The method is a balance sheet.</p>
+  <p>A real solver does not hardcode a direction. Each face flux is computed from the temperature difference across it, so the sign takes care of itself and the same formula works whichever way the heat happens to be going.</p>
+</section>
+
+<figure class="wide">
+  <div class="svg-wrap">
+    <svg viewBox="0 0 720 265" role="img" aria-label="The same curve divided into eight boxes, each replaced by a flat average, with flux arrows crossing the shared faces">
+      <line class="ax" x1="60" y1="215" x2="680" y2="215"/>
+      <line class="ax" x1="60" y1="215" x2="60" y2="30"/>
+
+      <rect class="cellfill" x="60"  y="200" width="75" height="15"/>
+      <rect class="cellfill" x="135" y="199" width="75" height="16"/>
+      <rect class="cellfill" x="210" y="195" width="75" height="20"/>
+      <rect class="cellfill" x="285" y="187" width="75" height="28"/>
+      <rect class="cellfill" x="360" y="172" width="75" height="43"/>
+      <rect class="cellfill" x="435" y="150" width="75" height="65"/>
+      <rect class="cellfill" x="510" y="117" width="75" height="98"/>
+      <rect class="cellfill" x="585" y="72"  width="75" height="143"/>
+
+      <rect class="cellbox" x="60"  y="200" width="75" height="15"/>
+      <rect class="cellbox" x="135" y="199" width="75" height="16"/>
+      <rect class="cellbox" x="210" y="195" width="75" height="20"/>
+      <rect class="cellbox" x="285" y="187" width="75" height="28"/>
+      <rect class="cellbox" x="360" y="172" width="75" height="43"/>
+      <rect class="cellbox" x="435" y="150" width="75" height="65"/>
+      <rect class="cellbox" x="510" y="117" width="75" height="98"/>
+      <rect class="cellbox" x="585" y="72"  width="75" height="143"/>
+
+      <polyline class="exact-dash" points="60,200 120,199.8 180,198.8 240,195.8 300,190.1 360,180.6 420,166.5 480,146.8 540,120.6 600,87 660,45"/>
+
+      <path class="step" d="M60,200 H135 M135,199 H210 M210,195 H285 M285,187 H360 M360,172 H435 M435,150 H510 M510,117 H585 M585,72 H660"/>
+
+      <defs>
+        <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M0,1 L9,5 L0,9 z" fill="var(--hot)"/>
+        </marker>
+      </defs>
+      <line class="flux" x1="530" y1="60" x2="497" y2="60" marker-end="url(#ah)"/>
+      <line class="flux" x1="497" y1="60" x2="464" y2="60" marker-end="url(#ah)"/>
+      <text class="svgtext hotlab" x="536" y="64">heat flows inward</text>
+      <text class="svgtext tiny" x="536" y="79">from the hot surface</text>
+
+      <circle cx="510" cy="117" r="4.5" fill="var(--hot)"/>
+      <text class="svgtext hotlab" x="510" y="140" text-anchor="middle">shared face</text>
+      <text class="svgtext tiny" x="510" y="155" text-anchor="middle">what leaves the right box</text>
+      <text class="svgtext tiny" x="510" y="169" text-anchor="middle">enters the left box exactly</text>
+
+      <text class="svgtext mono tiny" x="547" y="88" text-anchor="middle">box i</text>
+      <text class="svgtext mono tiny" x="622" y="88" text-anchor="middle">box i+1</text>
+      <text class="svgtext" x="60" y="236">one number per box</text>
+      <text class="svgtext tiny" x="660" y="252" text-anchor="end">dashed grey = the exact solution</text>
+    </svg>
+  </div>
+  <figcaption>Finite volume. The curve is replaced by eight flat steps, one average per box. The face between two boxes is shared, so the heat leaving one is by definition the heat entering the other. Nothing can be lost or invented in between, which is why the method conserves energy exactly rather than approximately.</figcaption>
+</figure>
+
+<section class="col">
+  <p class="kicker">This is your solver. Each finite-volume cell holds an average temperature and a set of species densities, and each step balances the fluxes across its two faces.</p>
+</section>
+
+<section class="col">
+  <h2 class="fem"><span class="marker">2</span>Finite element: tents and fitting</h2>
+  <p>Start somewhere else entirely. Instead of averaging over regions, <strong>assume a shape</strong> for the answer and then find the best version of that shape.</p>
+  <p>Place nodes along the bar. At each node, define a simple <strong>tent function</strong>: it rises to one at its own node and falls to zero at the neighboring nodes, and it is zero everywhere else. Scale each tent by an unknown height and add them all together. The sum is a piecewise-linear curve, and the unknowns are the tent heights.</p>
+  <span class="eq cool">T(x)  ≈  T₁·tent₁(x) + T₂·tent₂(x) + T₃·tent₃(x) + …</span>
+  <p>That guess will not satisfy the governing equation exactly, so there is a leftover error called the <strong>residual</strong>. Finite element picks the heights by demanding the residual be zero <em>on average against each tent</em>: multiply the residual by a tent function, integrate over the bar, set it to zero. One equation per tent, as many equations as unknowns.</p>
+</section>
+
+<figure class="wide">
+  <div class="svg-wrap">
+    <svg viewBox="0 0 720 320" role="img" aria-label="The same curve approximated by straight segments between nodes, with tent basis functions drawn underneath">
+      <line class="ax" x1="60" y1="215" x2="680" y2="215"/>
+      <line class="ax" x1="60" y1="215" x2="60" y2="30"/>
+
+      <line class="vline" x1="135" y1="215" x2="135" y2="199.7"/>
+      <line class="vline" x1="210" y1="215" x2="210" y2="197.6"/>
+      <line class="vline" x1="285" y1="215" x2="285" y2="191.8"/>
+      <line class="vline" x1="360" y1="215" x2="360" y2="180.6"/>
+      <line class="vline" x1="435" y1="215" x2="435" y2="162.2"/>
+      <line class="vline" x1="510" y1="215" x2="510" y2="134.6"/>
+      <line class="vline" x1="585" y1="215" x2="585" y2="96.2"/>
+
+      <polyline class="exact-dash" points="60,200 120,199.8 180,198.8 240,195.8 300,190.1 360,180.6 420,166.5 480,146.8 540,120.6 600,87 660,45"/>
+      <polyline class="fem-line" points="60,200 135,199.7 210,197.6 285,191.8 360,180.6 435,162.2 510,134.6 585,96.2 660,45"/>
+
+      <circle class="fem-node" cx="60"  cy="200"   r="4"/>
+      <circle class="fem-node" cx="135" cy="199.7" r="4"/>
+      <circle class="fem-node" cx="210" cy="197.6" r="4"/>
+      <circle class="fem-node" cx="285" cy="191.8" r="4"/>
+      <circle class="fem-node" cx="360" cy="180.6" r="4"/>
+      <circle class="fem-node" cx="435" cy="162.2" r="4"/>
+      <circle class="fem-node" cx="510" cy="134.6" r="4"/>
+      <circle class="fem-node" cx="585" cy="96.2"  r="4"/>
+      <circle class="fem-node" cx="660" cy="45"    r="4"/>
+
+      <text class="svgtext coollab" x="470" y="88">straight between nodes</text>
+      <text class="svgtext tiny" x="470" y="104">unknowns = the node heights</text>
+      <text class="svgtext tiny" x="660" y="234" text-anchor="end">dashed grey = the exact solution</text>
+
+      <line class="ax" x1="60" y1="300" x2="680" y2="300"/>
+      <text class="svgtext" x="60" y="264">the tent functions being added up</text>
+
+      <path class="tent-fill" d="M210,300 L285,262 L360,300 Z"/>
+      <path class="tent-fill" d="M285,300 L360,262 L435,300 Z"/>
+      <path class="tent-fill" d="M360,300 L435,262 L510,300 Z"/>
+      <path class="tent" d="M210,300 L285,262 L360,300"/>
+      <path class="tent" d="M285,300 L360,262 L435,300"/>
+      <path class="tent" d="M360,300 L435,262 L510,300"/>
+
+      <circle class="fem-node" cx="285" cy="262" r="3"/>
+      <circle class="fem-node" cx="360" cy="262" r="3"/>
+      <circle class="fem-node" cx="435" cy="262" r="3"/>
+      <text class="svgtext mono tiny" x="285" y="315" text-anchor="middle">node j−1</text>
+      <text class="svgtext mono tiny" x="360" y="315" text-anchor="middle">node j</text>
+      <text class="svgtext mono tiny" x="435" y="315" text-anchor="middle">node j+1</text>
+      <text class="svgtext tiny" x="556" y="268">each tent is 1 at its own node,</text>
+      <text class="svgtext tiny" x="556" y="283">0 at its neighbors, 0 elsewhere</text>
+    </svg>
+  </div>
+  <figcaption>Finite element. The lower strip shows three overlapping tent functions. Scaling each by its node height and adding them produces the piecewise-linear curve above. The unknowns are the heights, and they are chosen so the leftover error integrates to zero against every tent.</figcaption>
+</figure>
+
+<section class="col">
+  <h2>Side by side</h2>
+</section>
+
+<div class="wide" style="overflow-x:auto">
+  <table>
+    <thead>
+      <tr><th></th><th class="th-fvm">Finite volume</th><th class="th-fem">Finite element</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>The unknown is</td><td>an average over a box</td><td>a height at a node</td></tr>
+      <tr><td>Between unknowns</td><td>nothing, values are piecewise constant</td><td>a shape function interpolates</td></tr>
+      <tr><td>Equation comes from</td><td>a flux balance over each box</td><td>forcing the residual to zero against each basis function</td></tr>
+      <tr><td>Conservation</td><td>exact, built into the shared faces</td><td>not automatic, holds globally but not cell by cell</td></tr>
+      <tr><td>Natural home</td><td>fluids, heat transfer, anything where conservation matters</td><td>structural mechanics, complex geometry, higher-order accuracy</td></tr>
+      <tr><td>Mental image</td><td>a balance sheet</td><td>a curve fit</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<section class="col">
+  <h2>Where finite difference fits</h2>
+  <p>The third method is the one people confuse with finite volume, not with finite element. <strong>Finite difference</strong> keeps neither boxes nor shapes. It stores values at points and replaces each derivative with a difference quotient taken from a Taylor expansion.</p>
+  <p>On a uniform one-dimensional mesh, finite difference and finite volume often produce <em>identical algebra</em>. The distinction is in the reasoning, and the reasoning is what buys the guarantee. Finite volume arrives at the formula through a flux balance, so conservation holds no matter how coarse the mesh. Finite difference arrives at the same formula through a truncated series, so conservation is only as good as the truncation.</p>
+  <p>That is why a solver that must not lose energy over a million time steps is written as a finite volume method, even when the resulting lines of code would look the same either way.</p>
+</section>
+
+<section class="col">
+  <div class="legend">
+    <span><span class="swatch" style="background:var(--exact)"></span>exact solution</span>
+    <span><span class="swatch" style="background:var(--hot)"></span>finite volume</span>
+    <span><span class="swatch" style="background:var(--cool)"></span>finite element</span>
+  </div>
+</section>

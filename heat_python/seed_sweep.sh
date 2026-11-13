@@ -11,10 +11,10 @@ run_one () {  # $1=data  $2=tag
   local data=$1 tag=$2
   for s in $SEEDS; do
     local m=heat_python/models/scratch/${tag}_s${s}.pt
-    python -m heat_python.train_gnn --data "$data" --flux --no-pred-gas \
+    python -m heat_python.gnn.train_gnn --data "$data" --flux --no-pred-gas \
       --noise 0.03 --stayput 1.0 --seed "$s" --out "$m" >/dev/null 2>&1
     local err
-    err=$(python -m heat_python.eval_rollout_traj --traj "$HOLDOUT" --model "$m" 2>/dev/null \
+    err=$(python -m heat_python.gnn.eval_rollout_traj --traj "$HOLDOUT" --model "$m" 2>/dev/null \
           | grep "mean |err|" | sed -E 's/.*mean \|err\| ([0-9.]+) K.*/\1/')
     echo "RESULT ${tag} seed=${s} mean_err=${err}"
   done

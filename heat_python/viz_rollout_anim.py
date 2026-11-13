@@ -49,11 +49,16 @@ def _build(d, x_mm, label, virgin_frac, with_solver=False):
     thresh = virgin_frac * float(d["rhov_bulk"])
     S = Tg.shape[0]
     fg, fp = _fronts(rg, x_mm, thresh), _fronts(rp, x_mm, thresh)
-    vmin, vmax = float(min(Tg.min(), Tp.min())), float(max(Tg.max(), Tp.max()))
+    # Pin the color scale to the SOLVER's physical range so the solver panel
+    # renders identically across gifs (independent of how the GNN behaves).
+    # GNN values above this range are a divergence and saturate to a distinct
+    # off-scale color rather than stretching the bar and dimming the truth.
+    vmin, vmax = float(Tg.min()), float(Tg.max())
 
     extent = [x_mm[0], x_mm[-1], time[-1], time[0]]
     cmap = plt.get_cmap("inferno").copy()
     cmap.set_bad("0.12")                     # unfilled (future) = dark
+    cmap.set_over("#39ff14")                 # above solver max = divergence (neon green)
 
     def map_panel(ax, title):
         """A space-time T-map panel that fills top-to-bottom over time, with
@@ -104,7 +109,7 @@ def _build(d, x_mm, label, virgin_frac, with_solver=False):
     im_g, cg_gt, cg_pr, now_g = map_panel(
         ax_g, "GNN surrogate prediction T(x,t)")
     panels.append((im_g, Tp, cg_gt, cg_pr, now_g))
-    fig.colorbar(im_g, ax=ax_g, label="T [K]")
+    fig.colorbar(im_g, ax=ax_g, label="T [K]", extend="max")
     fig.tight_layout(rect=[0, 0, 1, 0.96])
 
     def update(s):
@@ -141,6 +146,14 @@ def main(args):
 
     fig, update, S = _build(d, x_mm, args.label, args.virgin_frac,
                             args.with_solver)
+
+    if args.still:
+        # single completed-rollout still (space-time maps fully filled); no gif
+        update(S - 1)
+        fig.savefig(out, dpi=120); plt.close(fig)
+        print(f"  saved {out}")
+        return
+
     idx = np.linspace(0, S - 1, min(args.n_frames, S)).astype(int)
     anim = FuncAnimation(fig, lambda k: update(idx[k]), frames=len(idx),
                          blit=False)
@@ -173,4 +186,6 @@ if __name__ == "__main__":
                    help="also dump early/mid/late composite frames as PNGs")
     p.add_argument("--with-solver", action="store_true",
                    help="add a Fortran-solver-truth filling map beside the GNN one")
+    p.add_argument("--still", action="store_true",
+                   help="render one completed-rollout PNG (final frame) instead of a gif")
     main(p.parse_args())

@@ -100,7 +100,8 @@ def main():
 
     ax.set_xlim(-0.14 * l0, 1.14 * l0)
     ax.set_ylim(-1.3, ytop + 1.7)
-    ax.set_xlabel("x  [mm]")
+    ax.set_xlabel("x  [mm]", fontsize=24)
+    ax.tick_params(axis="x", labelsize=20)
     ax.set_yticks([])
     ax.set_title("GNN graph over the aw1 slab — coarse meshes shown so nodes/edges are visible")
     for s in ["left", "right", "top"]:

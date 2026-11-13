@@ -1,0 +1,273 @@
+<title>Ten of 110,299</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&display=swap">
+<style>
+  :root{
+    --bg:#FAFAF7; --panel:#FFFFFF; --sunk:#F1F1EC; --ink:#16181D; --ink2:#4A4E56;
+    --ink3:#87867E; --rule:#E0E0D8; --live:#106B6B; --live-bg:#E4EFEE;
+    --inert:#8C8880; --alarm:#A84B2E; --alarm-bg:#F6E9E4; --code:#F3F3EE;
+  }
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#131418; --panel:#1A1C21; --sunk:#212329; --ink:#E9E9E3; --ink2:#AEB0AB;
+    --ink3:#7C7E79; --rule:#2C2F35; --live:#4FB5AC; --live-bg:#152A29;
+    --inert:#75776F; --alarm:#D98B6A; --alarm-bg:#2A1D18; --code:#1E2026;
+  }}
+  :root[data-theme="dark"]{
+    --bg:#131418; --panel:#1A1C21; --sunk:#212329; --ink:#E9E9E3; --ink2:#AEB0AB;
+    --ink3:#7C7E79; --rule:#2C2F35; --live:#4FB5AC; --live-bg:#152A29;
+    --inert:#75776F; --alarm:#D98B6A; --alarm-bg:#2A1D18; --code:#1E2026;
+  }
+  *{box-sizing:border-box}
+  body{background:var(--bg);color:var(--ink);margin:0;padding:3.5rem 1.25rem 6rem;
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+    font-size:16.5px;line-height:1.62;display:flex;flex-direction:column;align-items:center;gap:1.1rem}
+  .col{width:100%;max-width:41rem;display:flex;flex-direction:column;gap:1rem}
+  .wide{width:100%;max-width:52rem}
+  h1{font-family:Newsreader,Georgia,serif;font-weight:500;font-size:clamp(2.3rem,6vw,3.4rem);
+    line-height:1.04;letter-spacing:-.02em;margin:0;text-wrap:balance}
+  h2{font-family:Newsreader,Georgia,serif;font-weight:500;font-size:1.62rem;letter-spacing:-.011em;
+    margin:2.4rem 0 0;text-wrap:balance}
+  h3{font-size:.95rem;font-weight:680;margin:1.3rem 0 0;letter-spacing:-.005em}
+  p{margin:0}
+  .lede{font-family:Newsreader,Georgia,serif;font-size:1.24rem;line-height:1.55;color:var(--ink2)}
+  .eyebrow{font-size:.67rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3)}
+  code{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:.86em;
+    background:var(--sunk);padding:.09em .34em;border-radius:3px}
+  pre{margin:0;background:var(--code);border:1px solid var(--rule);border-radius:5px;
+    padding:1rem 1.1rem;overflow-x:auto;font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    font-size:.815rem;line-height:1.66;font-variant-numeric:tabular-nums}
+  pre .c{color:var(--ink3)}
+  pre .g{color:var(--live);font-weight:600}
+  .panel{background:var(--panel);border:1px solid var(--rule);border-radius:5px;padding:1.15rem 1.2rem;
+    display:flex;flex-direction:column;gap:.7rem}
+  .cap{font-size:.8rem;line-height:1.5;color:var(--ink2);border-top:1px solid var(--rule);padding-top:.65rem}
+  table{border-collapse:collapse;width:100%;font-size:.88rem;font-variant-numeric:tabular-nums}
+  th,td{text-align:left;padding:.5rem .6rem;border-bottom:1px solid var(--rule);vertical-align:top}
+  th{font-size:.66rem;letter-spacing:.11em;text-transform:uppercase;color:var(--ink3);font-weight:700}
+  tbody tr:last-child td{border-bottom:none}
+  td.num{text-align:right}
+  .tw{overflow-x:auto;background:var(--panel);border:1px solid var(--rule);border-radius:5px}
+  .big{display:flex;flex-wrap:wrap;gap:2.2rem;padding:.3rem 0}
+  .big div{display:flex;flex-direction:column;gap:.15rem}
+  .big .n{font-family:Newsreader,Georgia,serif;font-size:2.5rem;line-height:1;font-variant-numeric:tabular-nums}
+  .big .l{font-size:.72rem;letter-spacing:.09em;text-transform:uppercase;color:var(--ink3)}
+  .live{color:var(--live)} .inert{color:var(--inert)} .alarm{color:var(--alarm)}
+  .note{border-left:2px solid var(--live);background:var(--live-bg);padding:.8rem 1rem;border-radius:0 4px 4px 0}
+  .note.warn{border-left-color:var(--alarm);background:var(--alarm-bg)}
+  .note .h{font-size:.66rem;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:var(--live);margin-bottom:.35rem}
+  .note.warn .h{color:var(--alarm)}
+  ol,ul{margin:0;padding-left:1.25rem;display:flex;flex-direction:column;gap:.35rem}
+  .bar{display:flex;height:26px;border-radius:3px;overflow:hidden;border:1px solid var(--rule)}
+  .bar i{display:block;height:100%}
+  hr{border:none;border-top:1px solid var(--rule);margin:2rem 0 0;width:100%;max-width:41rem}
+</style>
+
+<header class="col">
+  <p class="eyebrow">One step of gradient descent, from the real checkpoint</p>
+  <h1>Ten of 110,299</h1>
+  <p class="lede">Every number below was pulled from the trained aw2 model and one snapshot of solver data. Nothing here is illustrative.</p>
+</header>
+
+<section class="col">
+  <h2>What the model is</h2>
+  <p>The surrogate holds <strong>110,299 parameters</strong>. Encoders, message-passing layers, layer norms, output heads. The usual apparatus.</p>
+  <p>In the configuration that produced the headline result, ten of them train. The rest never receive a gradient.</p>
+</section>
+
+<div class="col panel">
+  <div class="big">
+    <div><span class="n live">10</span><span class="l">on the gradient path</span></div>
+    <div><span class="n inert">110,289</span><span class="l">inert</span></div>
+    <div><span class="n">99.99%</span><span class="l">of weights unused</span></div>
+  </div>
+  <div class="bar" aria-label="Ten trainable parameters against 110,289 inert ones">
+    <i style="background:var(--live);width:0.6%"></i><i style="background:var(--inert);width:99.4%"></i>
+  </div>
+  <p class="cap">Measured by running one backward pass and counting parameters with a non-zero gradient. Two tensors qualify: <code>cond_logit</code> (5 numbers) and <code>pyro_coef</code> (5 numbers). The other 52 tensors receive nothing at all.</p>
+</div>
+
+<section class="col">
+  <h2>The input</h2>
+  <p>A cell near the heated surface, mid-transient. Snapshot 300 of the held-out trajectory, cell 495 of 500.</p>
+</section>
+
+<div class="wide tw">
+  <table>
+    <thead><tr><th>Feature</th><th class="num">Left neighbor</th><th class="num">This cell</th><th class="num">Right neighbor</th></tr></thead>
+    <tbody>
+      <tr><td><code>T</code> temperature</td><td class="num">1310.45</td><td class="num">1339.88</td><td class="num">1369.99</td></tr>
+      <tr><td><code>rho</code> bulk density</td><td class="num">224.87</td><td class="num">224.25</td><td class="num">223.72</td></tr>
+      <tr><td><code>rho_i0</code></td><td class="num">30.87</td><td class="num">28.00</td><td class="num">25.42</td></tr>
+      <tr><td><code>rho_i1</code></td><td class="num">617.82</td><td class="num">614.49</td><td class="num">611.81</td></tr>
+      <tr><td><code>rho_i2</code> inert</td><td class="num">1600.00</td><td class="num">1600.00</td><td class="num">1600.00</td></tr>
+      <tr><td><code>porosity</code></td><td class="num">0.8459</td><td class="num">0.8465</td><td class="num">0.8469</td></tr>
+      <tr><td><code>pg</code> gas pressure</td><td class="num">101551.5</td><td class="num">101524.3</td><td class="num">101495.4</td></tr>
+      <tr><td><code>mdotf</code> mass flux</td><td class="num">0.0146</td><td class="num">0.0147</td><td class="num">0.0148</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<section class="col">
+  <p>Temperature climbs left to right because the heated surface is on the right. Density falls in the same direction, since hotter material has charred further. The inert species does not move.</p>
+  <h3>Normalizing</h3>
+  <p>Raw values span 0.0147 to 101,524. A network cannot train on that spread. Each feature becomes standard deviations from its mean, using statistics stored inside the checkpoint.</p>
+</section>
+
+<div class="col panel">
+<pre><span class="c">raw   </span>[ 1339.88   224.25    28.00   614.49  1600.00     0.85  101524.25    0.0147 ]
+<span class="c">mean  </span>[  482.53   270.45   242.68   861.86  1600.00     0.81  101732.10    0.0010 ]
+<span class="c">std   </span>[  260.51    19.12   104.62    92.41     0.00     0.02     286.67    0.0020 ]
+<span class="c">                              (raw - mean) / std</span>
+<span class="c">norm  </span>[    <span class="g">3.291</span>   -2.417   -2.052   -2.677     0.000     2.417      -0.725    7.911 ]</pre>
+  <p class="cap">Temperature reads <code>3.291</code>, meaning this cell sits 3.3 standard deviations above the domain average. That is what "near the hot surface" looks like numerically. The inert species has zero standard deviation and normalizes to zero, correctly contributing nothing.</p>
+</div>
+
+<section class="col">
+  <h2>Forward</h2>
+  <p>The network predicts a change, not a state. It outputs in normalized units, then multiplies by the stored scale to reach kelvin.</p>
+</section>
+
+<div class="col panel">
+<pre><span class="c">network output      </span>0.000832
+<span class="c">x y_std (260.51)    </span><span class="g">0.2169 K</span>   <span class="c">predicted change</span>
+<span class="c">solver truth        </span><span class="g">0.4846 K</span>   <span class="c">what actually happened</span>
+
+<span class="c">predicted T_new     </span>1340.0980
+<span class="c">true      T_new     </span>1340.3657
+<span class="c">                    </span>---------
+<span class="c">miss                </span>0.2677 K</pre>
+  <p class="cap">It under-predicts by about a quarter kelvin on a step where the true change is half a kelvin. On a field spanning 300 to 1600 K, that is a small error in a difficult place.</p>
+</div>
+
+<section class="col">
+  <h2>Loss</h2>
+  <p>The error is divided by the same standard deviation before squaring, so every channel contributes on comparable footing rather than temperature drowning out porosity.</p>
+</section>
+
+<div class="col panel">
+<pre><span class="c">error         </span>(1340.0980 - 1340.3657) / 260.51  =  -1.0276e-03
+<span class="c">loss = error^2</span>                                    <span class="g">1.0560e-06</span></pre>
+  <p class="cap">Squaring makes the loss positive and penalizes large misses disproportionately. This single number is what gets differentiated.</p>
+</div>
+
+<section class="col">
+  <h2>Backward</h2>
+  <p>One call to <code>loss.backward()</code>. Automatic differentiation walks the computation in reverse, asking of every parameter: if this number rose slightly, would the loss rise or fall?</p>
+  <p>Here is the entire answer.</p>
+</section>
+
+<div class="col panel">
+<pre><span class="c">d(loss)/d(cond_logit)   </span>[ <span class="g">-5.849e-07</span>   0   0   0   0 ]
+<span class="c">d(loss)/d(pyro_coef)    </span>[ <span class="g">-7.343e-07</span>   0   0   0   0 ]
+
+<span class="c">every other parameter   </span><span class="inert">no gradient</span>
+<span class="c">global gradient norm    </span>9.387e-07</pre>
+  <p class="cap">Both gradients are negative, meaning the loss falls if these values rise. The model under-predicted, so the correction points upward. Only the temperature channel is active, since the char channels have their conductance pinned near zero and the inert channel has no dynamics.</p>
+</div>
+
+<section class="col">
+  <div class="note">
+    <div class="h">Why the encoders get nothing</div>
+    <p>With <code>--uniform-cond</code>, conductance comes from a single learned scalar per channel rather than from a network reading the cell state. The node encoder, geometry encoder, flux MLP, and conductance MLP are all bypassed. They exist because the class inherits them, but no path connects them to the loss. They are structurally dead in this configuration.</p>
+  </div>
+</section>
+
+<section class="col">
+  <h2>The update</h2>
+  <p>Subtract the gradient, scaled by the learning rate. That is the whole of gradient descent.</p>
+</section>
+
+<div class="col panel">
+<pre><span class="c">new = old - lr x gradient</span>
+
+<span class="c">cond_logit[0]  </span>0.713174 - 3e-04 x (-5.849e-07)  =  0.713174
+<span class="c">                                                  </span><span class="c">change: +1.75e-10</span>
+
+<span class="c">D = 0.5 x sigmoid(cond_logit)</span>
+<span class="c">               </span>0.335551  ->  0.335551</pre>
+  <p class="cap">The step is invisible at six decimals. That is not a failure. This model is converged, and one cell from one snapshot should barely move it. Training took tens of thousands of steps like this one, on batches of hundreds of cells.</p>
+</div>
+
+<hr>
+
+<section class="col">
+  <p class="eyebrow">Part two</p>
+  <h2>Why the physics carries the model</h2>
+  <p>Ten trainable numbers reproduce a coupled multiphysics solver to 18 K. That only works because nearly everything the model does is not learned.</p>
+</section>
+
+<div class="wide tw">
+  <table>
+    <thead><tr><th>Component</th><th>Where it comes from</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td>Arrhenius pyrolysis</td><td>The solver's own kinetics, transcribed</td><td class="inert">Fixed</td></tr>
+      <tr><td>Bounded-average update</td><td>Structural, from the finite-volume form</td><td class="inert">Fixed</td></tr>
+      <tr><td>Conduction rate <code>D</code></td><td>Measured, then relaxed around that anchor</td><td class="live">Learned, 5</td></tr>
+      <tr><td>Gas coupling</td><td>Learned from data</td><td class="live">Learned, 5</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<section class="col">
+  <p>The Arrhenius law runs under <code>torch.no_grad()</code>. It holds no trainable parameters and executes exactly as the reference solver executes it, using the real A, E, and psi values from the material file.</p>
+
+  <h3>The anchor, visible in the numbers</h3>
+  <p>At initialization <code>cond_logit</code> is set so the conductance lands precisely on the measured physical value. Training may move it, but it starts there.</p>
+</section>
+
+<div class="col panel">
+<pre><span class="c">at init      </span>cond_logit = [ 1.0986, -9.2102, -9.2102,  0.4055,  0.4055 ]
+<span class="c">             </span>D          = [ <span class="g">0.3750</span>,  0.0000,  0.0000,  <span class="g">0.3000</span>,  <span class="g">0.3000</span> ]
+                          <span class="c">exactly the measured diffusion number</span>
+
+<span class="c">after train  </span>D          = [ <span class="g">0.3356</span>,  0.0000,  0.0001,  0.2540,  0.2576 ]
+                          <span class="c">moved 10.5 percent, stayed near the anchor</span></pre>
+  <p class="cap">This is the inverse step. The field is fixed and the parameter is freed, and training recovers an effective rate close to the measured one. Proximity to the anchor is evidence the model is well posed, not evidence it discovered a new physical constant.</p>
+</div>
+
+<section class="col">
+  <h2>The evidence</h2>
+  <p>The argument for structuring physics in is not theoretical here. Four models, same data, same network, same held-out test.</p>
+</section>
+
+<div class="wide tw">
+  <table>
+    <thead><tr><th>What was structured in</th><th class="num">Held-out error</th><th>Behavior</th></tr></thead>
+    <tbody>
+      <tr><td>Nothing, purely learned</td><td class="num alarm">100,000 K</td><td class="alarm">Diverges</td></tr>
+      <tr><td>Conservation only, flux form</td><td class="num">120 K best seed</td><td>Bounded, but char front wrong in 5 of 8 seeds</td></tr>
+      <tr><td>Fixed conduction and real Arrhenius</td><td class="num live">25 K</td><td>Stable, front tracked to about 1 mm</td></tr>
+      <tr><td>Relaxed anchor and transient weighting</td><td class="num live">18 K</td><td>The headline model</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<section class="col">
+  <div class="note warn">
+    <div class="h">The part that matters</div>
+    <p>The purely learned model is not slightly worse. It reaches 100,000 K while the solver stays under 1700 K. More data does not fix it. More capacity does not fix it. Structuring the known physics into the update does.</p>
+  </div>
+
+  <h3>Saying it in one sentence</h3>
+  <p>A stiff coupled problem does not carry enough information in short rollouts to learn conduction and chemistry from scratch, so you supply them and let the network learn only what remains.</p>
+
+  <h3>The honest caveat</h3>
+  <p>This is not a physics-preserving surrogate. It gives up the solver's exact energy conservation, because it never forms an energy variable at all. What it keeps is a different guarantee: every update is a weighted average of a cell and its neighbors, so the field cannot exceed its surroundings. That is why it stays bounded where the free model did not.</p>
+</section>
+
+<section class="col">
+  <h2>Reproducing this</h2>
+</section>
+
+<div class="col panel">
+<pre><span class="c">model</span>
+heat_python/models/heat_cond_aw2_fine_n24_relax.pt
+
+<span class="c">data</span>
+heat_python/data/aw2_holdout_fine.npz     <span class="c">snapshot 300, cell 495</span>
+
+<span class="c">the forward pass</span>
+heat_python/gnn/gnn_flux_model.py:302
+
+<span class="c">the training loop this step is one iteration of</span>
+heat_python/gnn/train_rollout.py:229</pre>
+</div>

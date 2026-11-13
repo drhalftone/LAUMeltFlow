@@ -1,0 +1,461 @@
+<title>Surrogate Code Map</title>
+<style>
+  :root {
+    --bg: #FBFAF8;
+    --surface: #FFFFFF;
+    --sunk: #F3F1ED;
+    --ink: #1A1A1F;
+    --ink-soft: #565259;
+    --ink-faint: #8A8580;
+    --rule: #E2DED8;
+    --accent: #4B3FA8;
+    --accent-soft: #E9E6F7;
+    --amber: #9A6412;
+    --amber-soft: #F7EEDC;
+    --live: #2F7A4D;
+    --dead: #8A8580;
+    --code-bg: #F5F3EF;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #131316;
+      --surface: #1B1B20;
+      --sunk: #202027;
+      --ink: #E8E6E3;
+      --ink-soft: #A5A19C;
+      --ink-faint: #7A7570;
+      --rule: #2E2E36;
+      --accent: #A79BF0;
+      --accent-soft: #262138;
+      --amber: #E0A94F;
+      --amber-soft: #2C2415;
+      --live: #5FBF8A;
+      --dead: #7A7570;
+      --code-bg: #1E1E24;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #131316; --surface: #1B1B20; --sunk: #202027;
+    --ink: #E8E6E3; --ink-soft: #A5A19C; --ink-faint: #7A7570;
+    --rule: #2E2E36; --accent: #A79BF0; --accent-soft: #262138;
+    --amber: #E0A94F; --amber-soft: #2C2415;
+    --live: #5FBF8A; --dead: #7A7570; --code-bg: #1E1E24;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 16px;
+    line-height: 1.62;
+    margin: 0;
+    padding: 3.5rem 1.5rem 6rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.4rem;
+  }
+
+  .col  { width: 100%; max-width: 44rem; display: flex; flex-direction: column; gap: 1rem; }
+  .wide { width: 100%; max-width: 56rem; }
+
+  h1 {
+    font-size: clamp(2rem, 5.5vw, 2.9rem);
+    font-weight: 800; letter-spacing: -0.035em; line-height: 1.06;
+    margin: 0; text-wrap: balance;
+  }
+  h2 {
+    font-size: 1.4rem; font-weight: 750; letter-spacing: -0.02em;
+    margin: 2.2rem 0 0; text-wrap: balance;
+    display: flex; align-items: baseline; gap: 0.6rem;
+  }
+  h2 .n {
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 0.82rem; font-weight: 700; color: var(--accent);
+    background: var(--accent-soft); padding: 0.12rem 0.44rem;
+    border-radius: 3px; flex: none;
+  }
+  h3 { font-size: 1.03rem; font-weight: 700; margin: 1.3rem 0 0; letter-spacing: -0.01em; }
+  p { margin: 0; }
+  strong { font-weight: 680; }
+
+  .standfirst { font-size: 1.1rem; color: var(--ink-soft); margin: 0; text-wrap: balance; }
+  .label {
+    font-size: 0.68rem; font-weight: 700; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--ink-faint);
+  }
+
+  code, .path, kbd {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  p code, li code, td code {
+    font-size: 0.87em; background: var(--sunk);
+    padding: 0.08em 0.34em; border-radius: 3px;
+  }
+  .path {
+    font-size: 0.83em; color: var(--accent); font-weight: 600;
+    background: var(--accent-soft); padding: 0.1em 0.42em; border-radius: 3px;
+    white-space: nowrap;
+  }
+
+  pre {
+    margin: 0; background: var(--code-bg); border: 1px solid var(--rule);
+    border-radius: 4px; padding: 0.9rem 0.4rem 0.9rem 0;
+    overflow-x: auto; font-size: 0.83rem; line-height: 1.62;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    tab-size: 4;
+  }
+  pre .ln {
+    display: inline-block; width: 3.6em; padding-right: 1em;
+    text-align: right; color: var(--ink-faint); user-select: none;
+    border-right: 1px solid var(--rule); margin-right: 0.9em;
+  }
+  pre .cm { color: var(--ink-faint); font-style: italic; }
+  pre .hl { color: var(--accent); font-weight: 650; }
+  pre .warn { color: var(--amber); font-weight: 650; }
+
+  figure {
+    margin: 0; background: var(--surface); border: 1px solid var(--rule);
+    border-radius: 4px; padding: 1.3rem 1.1rem 0.9rem;
+    display: flex; flex-direction: column; gap: 0.8rem;
+  }
+  .svg-wrap { width: 100%; overflow-x: auto; }
+  svg { display: block; width: 100%; height: auto; min-width: 500px; }
+  figcaption {
+    font-size: 0.81rem; line-height: 1.5; color: var(--ink-soft);
+    border-top: 1px solid var(--rule); padding-top: 0.7rem;
+  }
+
+  .note {
+    border-left: 3px solid var(--amber); background: var(--amber-soft);
+    padding: 0.8rem 1rem; border-radius: 0 3px 3px 0;
+    display: flex; flex-direction: column; gap: 0.5rem;
+  }
+  .note .hdr {
+    font-size: 0.68rem; font-weight: 800; letter-spacing: 0.13em;
+    text-transform: uppercase; color: var(--amber);
+  }
+
+  table { border-collapse: collapse; width: 100%; font-size: 0.88rem; }
+  th, td { text-align: left; padding: 0.55rem 0.65rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  th {
+    font-size: 0.68rem; letter-spacing: 0.11em; text-transform: uppercase;
+    color: var(--ink-faint); font-weight: 700;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  .tbl-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--rule); border-radius: 4px; }
+
+  .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 0.45rem; flex: none; }
+  .dot.live { background: var(--live); }
+  .dot.dead { background: var(--dead); }
+
+  ol, ul { margin: 0; padding-left: 1.3rem; display: flex; flex-direction: column; gap: 0.4rem; }
+
+  /* SVG tokens */
+  .box   { fill: var(--surface); stroke: var(--rule); stroke-width: 1.4; }
+  .box-a { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.6; }
+  .box-d { fill: var(--sunk); stroke: var(--rule); stroke-width: 1.4; stroke-dasharray: 4 3; }
+  .arrow { stroke: var(--ink-faint); stroke-width: 1.6; fill: none; }
+  .st  { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11.5px; fill: var(--ink); }
+  .st.sm { font-size: 10px; fill: var(--ink-soft); font-family: ui-sans-serif, system-ui, sans-serif; }
+  .st.ac { fill: var(--accent); font-weight: 650; }
+  .st.dd { fill: var(--dead); }
+</style>
+
+<header class="col">
+  <p class="label">heat_python / gnn</p>
+  <h1>Surrogate Code Map</h1>
+  <p class="standfirst">How the GNN surrogate is put together, which file does what, and the exact lines to open when you want to change something.</p>
+</header>
+
+<section class="col">
+  <h2><span class="n">01</span>The whole thing in one paragraph</h2>
+  <p>The solver runs the real physics and records what happened. Those recordings become training pairs of the form <em>state now</em> and <em>state one super-step later</em>. A small neural network learns to make that jump. At evaluation the network is fed its own output over and over, and the result is compared against the solver.</p>
+  <p>A <strong>super-step</strong> is the surrogate's time step. It is roughly 200 times larger than the solver's, and that ratio is where the speedup comes from.</p>
+</section>
+
+<figure class="wide">
+  <div class="svg-wrap">
+    <svg viewBox="0 0 880 190" role="img" aria-label="Pipeline from solver through data generation, graph building, training, to evaluation">
+      <rect class="box" x="8" y="42" width="118" height="52" rx="4"/>
+      <text class="st" x="67" y="66" text-anchor="middle">solver.py</text>
+      <text class="st sm" x="67" y="82" text-anchor="middle">real physics</text>
+
+      <rect class="box" x="158" y="42" width="128" height="52" rx="4"/>
+      <text class="st" x="222" y="66" text-anchor="middle">data_gen.py</text>
+      <text class="st sm" x="222" y="82" text-anchor="middle">trajectory .npz</text>
+
+      <rect class="box" x="318" y="42" width="118" height="52" rx="4"/>
+      <text class="st" x="377" y="66" text-anchor="middle">graph.py</text>
+      <text class="st sm" x="377" y="82" text-anchor="middle">training pairs</text>
+
+      <rect class="box-a" x="468" y="42" width="146" height="52" rx="4"/>
+      <text class="st ac" x="541" y="66" text-anchor="middle">train_rollout.py</text>
+      <text class="st sm" x="541" y="82" text-anchor="middle">the model .pt</text>
+
+      <rect class="box" x="646" y="42" width="164" height="52" rx="4"/>
+      <text class="st" x="728" y="66" text-anchor="middle">eval_rollout_traj.py</text>
+      <text class="st sm" x="728" y="82" text-anchor="middle">error vs solver</text>
+
+      <defs>
+        <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M0,1 L9,5 L0,9 z" fill="var(--ink-faint)"/>
+        </marker>
+      </defs>
+      <line class="arrow" x1="128" y1="68" x2="154" y2="68" marker-end="url(#a1)"/>
+      <line class="arrow" x1="288" y1="68" x2="314" y2="68" marker-end="url(#a1)"/>
+      <line class="arrow" x1="438" y1="68" x2="464" y2="68" marker-end="url(#a1)"/>
+      <line class="arrow" x1="616" y1="68" x2="642" y2="68" marker-end="url(#a1)"/>
+
+      <rect class="box-d" x="468" y="122" width="146" height="44" rx="4"/>
+      <text class="st" x="541" y="141" text-anchor="middle">gnn_flux_model.py</text>
+      <text class="st sm" x="541" y="156" text-anchor="middle">the network itself</text>
+      <line class="arrow" x1="541" y1="118" x2="541" y2="100" marker-end="url(#a1)"/>
+
+      <text class="st sm" x="222" y="118" text-anchor="middle">runs the solver N times</text>
+      <text class="st sm" x="728" y="118" text-anchor="middle">model feeds on its own output</text>
+    </svg>
+  </div>
+  <figcaption>Data flows left to right. Only the highlighted box is where you would normally intervene. The network definition sits underneath because both training and evaluation import it, but neither owns it.</figcaption>
+</figure>
+
+<section class="col">
+  <h2><span class="n">02</span>Where everything lives</h2>
+  <p>Two folders, and the split is meaningful. <span class="path">heat_python/</span> is the Fortran port, ported physics only, no machine learning anywhere in it. <span class="path">heat_python/gnn/</span> is the surrogate.</p>
+</section>
+
+<div class="wide tbl-wrap">
+  <table>
+    <thead><tr><th>File</th><th>Job</th><th>Open it when</th></tr></thead>
+    <tbody>
+      <tr><td><span class="dot live"></span><code>gnn_model.py</code></td><td>The Lego brick plus the plain GNN</td><td>You want the simplest version of the architecture</td></tr>
+      <tr><td><span class="dot live"></span><code>gnn_flux_model.py</code></td><td><strong>The real model.</strong> Flux form and conductance form</td><td>Changing the architecture or the physics built into it</td></tr>
+      <tr><td><span class="dot live"></span><code>graph.py</code></td><td>Trajectory to training pairs. Defines the features</td><td>Adding or removing an input feature</td></tr>
+      <tr><td><span class="dot live"></span><code>data_gen.py</code></td><td>Runs the solver, saves a trajectory</td><td>Changing what gets recorded</td></tr>
+      <tr><td><span class="dot live"></span><code>make_aw2_fine.py</code></td><td>Builds the swept multi forcing dataset</td><td>Changing the training forcings</td></tr>
+      <tr><td><span class="dot live"></span><code>make_aw2_holdout_traj.py</code></td><td>Builds the held out test case</td><td>Changing the test case</td></tr>
+      <tr><td><span class="dot live"></span><code>train_gnn.py</code></td><td>Single step training</td><td>Rarely. But see the trap below</td></tr>
+      <tr><td><span class="dot live"></span><code>train_rollout.py</code></td><td><strong>The trainer you actually use.</strong> Multi step</td><td>Changing the loss, schedule, or anything about training</td></tr>
+      <tr><td><span class="dot live"></span><code>eval_rollout_traj.py</code></td><td>Free running rollout, reports error</td><td>Measuring how good a model is</td></tr>
+      <tr><td><span class="dot live"></span><code>make_dataset.py</code></td><td>The aw1 forcing sweep</td><td>Working on the gas off case</td></tr>
+      <tr><td><span class="dot dead"></span><code>archive/</code></td><td>Eight superseded scripts</td><td>Never, except to cite a negative result</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<section class="col">
+  <h2><span class="n">03</span>What the data actually is</h2>
+  <p>Two objects matter, and confusing them will cost you an afternoon.</p>
+
+  <h3>A trajectory</h3>
+  <p>One solver run, recorded. Arrays of shape <code>(S, m)</code> where <code>S</code> is the number of snapshots and <code>m</code> is the number of cells <em>including the two ghost cells</em>. Built by <span class="path">data_gen.py:34</span>, loaded by <span class="path">data_gen.py:59</span>.</p>
+  <p>The ghost cells matter enormously. They are the two fake cells outside the domain that carry the boundary condition. Keeping them in the recording is what lets the surrogate be told what the boundary is doing at every step instead of having to guess.</p>
+
+  <h3>Node features</h3>
+  <p>Every cell becomes a row of numbers. Built at <span class="path">graph.py:50</span>:</p>
+  <pre><span class="ln">65</span>feats = [T[:, :, None], rho[:, :, None]]
+<span class="ln">66</span>feats += [rho_i[:, k, :, None] for k in range(ns)]
+<span class="ln">67</span>feats.append(por[:, :, None])
+<span class="ln">68</span>names = ["T", "rho"] + [f"rho_i{k}" ...] + ["porosity"]
+<span class="ln">69</span>
+<span class="ln">70</span><span class="cm"># gas runs append two more columns</span>
+<span class="ln">73</span>names += ["pg", "mdotf"]</pre>
+  <p>So a cell is <code>[T, rho, rho_i0, rho_i1, rho_i2, porosity, pg, mdotf]</code>, eight numbers for the gas case. Note the gas columns are <em>appended at the end</em> deliberately, so the gas off layout is a prefix of the gas on layout and the same code handles both.</p>
+
+  <h3>Edges are relative, not absolute</h3>
+  <p>An edge stores the neighbor <em>minus</em> me, plus the spacing. Not the neighbor's absolute state. That mirrors the physics, since conduction is driven by a difference across a face. You can see it built identically in three places, which is itself worth knowing: <span class="path">gnn_model.py:122</span>, <span class="path">gnn_flux_model.py:126</span>, <span class="path">train_rollout.py:59</span>.</p>
+</section>
+
+<section class="col">
+  <h2><span class="n">04</span>The model, four layers deep</h2>
+  <p>Each class inherits from the one above and overrides <code>forward</code>. Reading them top to bottom is reading the project's history in order.</p>
+</section>
+
+<figure class="wide">
+  <div class="svg-wrap">
+    <svg viewBox="0 0 820 250" role="img" aria-label="Class inheritance from ResMLPBlock down to HeatConductanceMPGNN">
+      <rect class="box" x="20" y="14" width="230" height="46" rx="4"/>
+      <text class="st" x="36" y="34">ResMLPBlock</text>
+      <text class="st sm" x="36" y="50">gnn_model.py:22 — one MLP + shortcut</text>
+
+      <rect class="box" x="20" y="76" width="230" height="46" rx="4"/>
+      <text class="st" x="36" y="96">HeatMPGNN</text>
+      <text class="st sm" x="36" y="112">gnn_model.py:41 — plain GNN, works on aw1</text>
+
+      <rect class="box" x="20" y="138" width="230" height="46" rx="4"/>
+      <text class="st" x="36" y="158">HeatFluxMPGNN</text>
+      <text class="st sm" x="36" y="174">gnn_flux_model.py:40 — conserves, still blows up</text>
+
+      <rect class="box-a" x="20" y="200" width="230" height="46" rx="4"/>
+      <text class="st ac" x="36" y="220">HeatConductanceMPGNN</text>
+      <text class="st sm" x="36" y="236">gnn_flux_model.py:141 — the headline model</text>
+
+      <line class="arrow" x1="135" y1="62" x2="135" y2="72" marker-end="url(#a1)"/>
+      <line class="arrow" x1="135" y1="124" x2="135" y2="134" marker-end="url(#a1)"/>
+      <line class="arrow" x1="135" y1="186" x2="135" y2="196" marker-end="url(#a1)"/>
+
+      <text class="st sm" x="290" y="100">predicts a change per cell</text>
+      <text class="st sm" x="290" y="162">predicts a flux per face instead</text>
+      <text class="st sm" x="290" y="224">bounds that flux so it cannot overshoot</text>
+
+      <line class="arrow" x1="282" y1="96" x2="262" y2="96"/>
+      <line class="arrow" x1="282" y1="158" x2="262" y2="158"/>
+      <line class="arrow" x1="282" y1="220" x2="262" y2="220"/>
+
+      <text class="st sm dd" x="600" y="34">Each step down removes a</text>
+      <text class="st sm dd" x="600" y="50">failure mode found in the one above.</text>
+      <text class="st sm dd" x="600" y="72">Flux form killed the drift.</text>
+      <text class="st sm dd" x="600" y="88">Conductance killed the blow up.</text>
+    </svg>
+  </div>
+  <figcaption>Inheritance chain. HeatFluxMPGNN does not inherit from HeatMPGNN, despite the naming. It reimplements the same interface, so the training code can swap between them without knowing which it has.</figcaption>
+</figure>
+
+<section class="col">
+  <h3>The forward pass, the twenty lines that matter</h3>
+  <p><span class="path">gnn_flux_model.py:302</span>. Everything else in the project exists to feed this function or to measure it.</p>
+  <pre><span class="ln">306</span>h_self  = self.node_encoder(node_feat)      <span class="cm"># encode me</span>
+<span class="ln">307</span>h_left  = self.node_encoder(nbr_l)          <span class="cm"># encode left neighbor</span>
+<span class="ln">308</span>h_right = self.node_encoder(nbr_r)          <span class="cm"># encode right neighbor</span>
+<span class="ln">312</span>s_self  = node_feat[..., self.out_in_cols]
+<span class="ln">314</span><span class="hl">flux_left  = self._conductance(...) * (s_self - nbr_l[...])</span>
+<span class="ln">316</span><span class="hl">flux_right = self._conductance(...) * (s_self - nbr_r[...])</span>
+<span class="ln">322</span>source = self._pyro_source(node_feat)       <span class="cm"># chemistry</span>
+<span class="ln">324</span><span class="hl">return -(flux_right + flux_left) + source</span></pre>
+  <p>Read the last line as a balance sheet. What I lose across my two faces, plus what is created inside me. That is the finite volume statement, expressed as a neural network.</p>
+
+  <h3>The one trick that makes it stable</h3>
+  <p><span class="path">gnn_flux_model.py:290</span>. The conductance is squeezed into a bounded range:</p>
+  <pre><span class="ln">296</span>D = self.face_cap * torch.sigmoid(self.cond_logit)  <span class="cm"># face_cap = 0.5</span></pre>
+  <p><code>sigmoid</code> returns something between 0 and 1, so <code>D</code> lands between 0 and 0.5. With two neighbors the weights sum to at most 1. Expand the algebra and the update becomes</p>
+  <pre>T_new = (1 - D_l - D_r) * T_self  +  D_l * T_left  +  D_r * T_right</pre>
+  <p>Every coefficient is positive and they sum to one, so the result is a <strong>weighted average</strong>. It physically cannot land outside the range of the three inputs. That is why this model stayed bounded where the free flux version reached 100,000 K.</p>
+
+  <h3>What is learned and what is not</h3>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Piece</th><th>Status</th><th>Line</th></tr></thead>
+      <tbody>
+        <tr><td>Conduction rate D</td><td>Fixed, or learnable starting from the physical value</td><td><code>gnn_flux_model.py:290</code></td></tr>
+        <tr><td>Arrhenius pyrolysis</td><td><strong>Fixed.</strong> Runs the solver's own kinetics</td><td><code>gnn_flux_model.py:252</code></td></tr>
+        <tr><td>Bounded update</td><td><strong>Structural.</strong> Not learned at all</td><td><code>gnn_flux_model.py:296</code></td></tr>
+        <tr><td>Gas coupling</td><td><strong>Learned.</strong> About three numbers</td><td><code>gnn_flux_model.py:228</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>The <code>torch.no_grad()</code> wrapped around the kinetics at <span class="path">gnn_flux_model.py:270</span> is not cosmetic. The <code>W^(1-psi)</code> term has exploding gradients for nearly charred cells and produced NaNs during training. Since those kinetics contain no trainable parameters, blocking the gradient costs nothing and fixes it.</p>
+</section>
+
+<section class="col">
+  <h2><span class="n">05</span>Training</h2>
+  <p>The trainer is <span class="path">train_rollout.py</span>, and the interesting part is that it does not train on single steps. It unrolls several steps and puts the loss on the whole short rollout.</p>
+  <p>The inner loop is <span class="path">train_rollout.py:229</span>:</p>
+  <pre><span class="ln">229</span>for k in range(M):                 <span class="cm"># M super-steps of unroll</span>
+<span class="ln">230</span>    truth_k = seqs_t[bt, bs_ + k]  <span class="cm"># ghosts = the true forcing</span>
+<span class="ln">233</span>    for _ in range(args.substeps): <span class="cm"># each super-step = 8 sub-steps</span>
+<span class="ln">234</span>        interior = mesh_step(model, state, dx_t, stats, consts, cols)
+<span class="ln">238</span>        state = torch.cat([truth_k[:, 0:1], interior,
+<span class="ln">239</span>                           truth_k[:, m-1:m]], dim=1)
+<span class="ln">241</span>    err = (state[...] - truth_next[...]) / node_std_out
+<span class="ln">261</span>    loss = loss + se.mean()</pre>
+  <p>Three things are happening. The ghost cells are re written from truth every step, so the model is always told the correct boundary condition rather than having to predict it. Each data step is taken as eight smaller sub steps, because one bounded update only reaches the immediate neighbor and the heat needs to travel further than that. And the loss accumulates across the unroll, which is what teaches the model to be stable rather than merely accurate once.</p>
+
+  <h3>Loss weighting</h3>
+  <p>Two optional weights, both at <span class="path">train_rollout.py:244</span>. <code>--loss-weight</code> upweights hot cells, spatially. <code>--temporal-weight</code> upweights cells that are changing fast, which is the sharp flux transient. The temporal one is the transfer learning idea from the Cao paper, applied as a loss weight instead of staged layer freezing.</p>
+</section>
+
+<section class="col">
+  <h2><span class="n">06</span>Evaluation</h2>
+  <p><span class="path">eval_rollout_traj.py:76</span>. This is the honest test, because the model is fed its own output and never sees the truth again except for the boundary.</p>
+  <pre><span class="ln">76</span>for k in range(S - 1):
+<span class="ln">77</span>    state[0] = gt[k, 0]              <span class="cm"># ghosts from truth</span>
+<span class="ln">80</span>    for _ in range(substeps):
+<span class="ln">81</span>        new_int = model.step_mesh(state, dx, out_idx)
+<span class="ln">91</span>        state[1:m-1] = new_int       <span class="cm"># ghosts untouched</span></pre>
+  <p>Compare this to the training loop above. Same shape, but nothing corrects the interior. Errors compound, which is exactly what you want to measure.</p>
+</section>
+
+<section class="col">
+  <h2><span class="n">07</span>Landmines</h2>
+  <p>Four things in this codebase that will waste your time if nobody warns you.</p>
+</section>
+
+<section class="col">
+  <div class="note">
+    <span class="hdr">Naming collision</span>
+    <p><code>step_mesh</code> and <code>mesh_step</code> are two different functions that do the same job. <span class="path">gnn_flux_model.py:113</span> is the inference version, wrapped in <code>@torch.no_grad()</code> and using in place edits. <span class="path">train_rollout.py:39</span> is the training version, written without in place edits so gradients can flow backward through it. They must stay in sync, and nothing enforces that.</p>
+  </div>
+
+  <div class="note">
+    <span class="hdr">The scaling bug that cost a session</span>
+    <p><span class="path">train_rollout.py:133</span>. The conductance flux works on differences normalized by the absolute state spread, but the output was being denormalized by the per step delta spread, which is around fifty times smaller. Effective diffusion was throttled about thirtyfold and the thermal front could not penetrate no matter what value D took. The fix is three lines:</p>
+    <pre><span class="ln">133</span>if args.conductance:
+<span class="ln">140</span>    <span class="warn">stats[5] = node_std_out.clone()</span></pre>
+    <p>The symptom looked like a physics problem, a frozen front, and several hours went into chasing physics before the cause turned out to be one wrong variable of the right shape.</p>
+  </div>
+
+  <div class="note">
+    <span class="hdr">train_gnn.py looks dead but is not</span>
+    <p>It appears fully superseded by <code>train_rollout.py</code>, and almost is. But <span class="path">train_rollout.py:34</span> imports <code>select_out_cols</code> from it. Delete it and the live trainer breaks.</p>
+  </div>
+
+  <div class="note">
+    <span class="hdr">Checkpoints carry their own configuration</span>
+    <p>Training saves <code>state_dict</code> plus every architectural choice, at <span class="path">train_rollout.py:279</span>. Evaluation reads those back and rebuilds the right class automatically. This is why you do not pass architecture flags to the evaluator, and why moving files between folders did not break any existing model file.</p>
+  </div>
+</section>
+
+<section class="col">
+  <h2><span class="n">08</span>I want to change X</h2>
+</section>
+
+<div class="wide tbl-wrap">
+  <table>
+    <thead><tr><th>Goal</th><th>Go to</th></tr></thead>
+    <tbody>
+      <tr><td>Add or remove an input feature</td><td><code>graph.py:50</code>, then check <code>select_out_cols</code> in <code>train_gnn.py:31</code></td></tr>
+      <tr><td>Change the architecture</td><td><code>gnn_flux_model.py:302</code></td></tr>
+      <tr><td>Change how stable the update is</td><td><code>gnn_flux_model.py:290</code> (the cap)</td></tr>
+      <tr><td>Change the chemistry</td><td><code>gnn_flux_model.py:252</code></td></tr>
+      <tr><td>Change the loss</td><td><code>train_rollout.py:241</code></td></tr>
+      <tr><td>Change how many steps are unrolled</td><td><code>--rollout-steps</code>, used at <code>train_rollout.py:229</code></td></tr>
+      <tr><td>Change the training forcings</td><td><code>make_aw2_fine.py:36</code></td></tr>
+      <tr><td>Change the held out test</td><td><code>make_aw2_holdout_traj.py</code></td></tr>
+      <tr><td>Change what the evaluator reports</td><td><code>eval_rollout_traj.py:111</code></td></tr>
+      <tr><td>Change what the solver records</td><td><code>data_gen.py:34</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<section class="col">
+  <h2><span class="n">09</span>Running it</h2>
+  <p>Every command gained a <code>gnn</code> segment in the August 2026 reorganization. Solver side commands did not change.</p>
+  <pre><span class="cm"># build the dataset</span>
+python -m heat_python.gnn.make_aw2_fine --n 24 --record-every 200 ...
+
+<span class="cm"># train the headline model</span>
+python -m heat_python.gnn.train_rollout \
+    --data aw2_fine_dataset_n24.npz --conductance --physical-source \
+    --real-kinetics --fixed-cond 0.375,0,0,0.3,0.3 --uniform-cond \
+    --temporal-weight 8 --substeps 8 --rollout-steps 2 ...
+
+<span class="cm"># evaluate</span>
+python -m heat_python.gnn.eval_rollout_traj --traj aw2_holdout_fine.npz --model ...
+
+<span class="cm"># the solver itself, unchanged</span>
+python -m heat_python.solver --case-dir .../aw2_tc21 --gas</pre>
+</section>
+
+<section class="col">
+  <h2><span class="n">10</span>Suggested reading order</h2>
+  <ol>
+    <li><code>gnn_model.py:22</code> — <code>ResMLPBlock</code>, fifteen lines, understand the brick</li>
+    <li><code>gnn_model.py:79</code> — the plain forward pass, no flux machinery</li>
+    <li><code>gnn_flux_model.py:302</code> — the real forward pass</li>
+    <li><code>train_rollout.py:39</code> — how one step is taken differentiably</li>
+    <li><code>train_rollout.py:229</code> — how one step becomes a rollout</li>
+  </ol>
+  <p>That is roughly 150 lines of reading and covers everything load bearing. The other three thousand lines are argument parsing, file handling, and the eight archived experiments.</p>
+</section>

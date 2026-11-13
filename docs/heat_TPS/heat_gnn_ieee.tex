@@ -32,8 +32,10 @@ full gas and aerothermal case. Training on data from the validated solver, a
 per-cell message-passing GNN reproduces a held-out heating scenario over a full
 60~s rollout to a mean error of 7.6~K and tracks the pyrolysis front to within a
 fraction of a millimeter. On the full gas case a direct per-cell predictor
-diverges on a held-out forcing, whereas a conservative flux-form variant that
-predicts face fluxes removes the divergence and holds a bounded rollout.
+diverges on a held-out forcing; a conservative flux-form variant removes that
+catastrophic divergence but does not yet produce a physically faithful rollout, so
+we report the gas case as a diagnosed open problem rather than a delivered
+surrogate.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -55,13 +57,19 @@ pyrolyzes (chemically decomposes) as it heats, the pyrolysis gas percolates out
 through the charring solid, and the exposed surface exchanges energy with the hot
 boundary layer.
 
-A high-fidelity solver that captures this coupling is expensive to run, and TPS
-design needs many such runs: parameter sweeps, sizing studies, and optimization
-loops each call the solver hundreds or thousands of
-times~\cite{pan2023,mazzaracchio2010,lu2024}. That cost is the bottleneck this
-work targets. The response we pursue is a machine-learned surrogate trained on
-data from a trusted reference solver, so that design loops can replace most solver
-calls with fast surrogate evaluations~\cite{queipo2005}.
+Capturing this coupling at design fidelity is expensive. Detailed
+material-response codes, and especially simulations that couple the material
+response to a CFD boundary layer, are costly per run, and design compounds that
+cost: sizing studies, trade sweeps, and optimization or uncertainty loops call the
+solver many times over~\cite{pan2023,mazzaracchio2010,lu2024}. The per-run cost
+multiplied by the number of calls is the bottleneck a surrogate targets. The
+response we pursue is a machine-learned surrogate trained on data from a trusted
+reference solver, so a design loop can replace most solver calls with fast
+surrogate evaluations~\cite{queipo2005}. The 1D reference solver used here is
+itself inexpensive, a few minutes per run; we treat it as a tractable, fully
+validated testbed for developing the surrogate method, with the speed payoff
+intended for the higher-fidelity and higher-dimensional solvers the same method is
+meant to extend to.
 
 We use a graph neural network for the surrogate because the discretized solver is
 naturally a graph: the mesh cells are nodes and adjacent cells are connected by
@@ -73,10 +81,11 @@ run at varying resolutions.
 This paper reports two things. First, a faithful Python re-implementation of the
 reference Fortran solver, verified against the original to machine precision on
 the conduction--pyrolysis case and to a small fraction of a kelvin on the full
-multi-physics case. Second, a first working surrogate trained on that validated
-solver's data, accurate over a full rollout on a held-out scenario, together with
-a diagnosed failure mode on the gas case and a conservative flux-form formulation
-that removes it.
+multi-physics case. Second, a working surrogate for the conduction--pyrolysis
+case, accurate over a full rollout on a held-out scenario, alongside a diagnosed
+failure on the full gas case: a conservative flux-form formulation removes the
+catastrophic divergence of the naive model but does not by itself yield a
+physically faithful gas-case rollout, which we report as an open problem.
 
 \section{Reference Solver}
 The reference is a 1D finite-volume heat-shield code written in Fortran. It models,
@@ -349,41 +358,60 @@ knife edge. Every run is bounded through heating and the flux cutoff; the
 divergence, when it occurs, is in the long cooldown tail.
 
 \begin{table}[t]
-\caption{Held-out \texttt{aw2} mean interior $T$ error over eight random seeds,
-eight vs.\ twenty-four training forcings.}
+\caption{Held-out \texttt{aw2} over eight random seeds, eight vs.\ twenty-four
+training forcings: interior $T$ error and char-front fidelity. More data tightens
+the temperature mean but does not make a faithful char front the norm.}
 \label{tab:seeds}
 \centering
 \begin{tabular}{lrr}
 \toprule
- & Eight forcings & Twenty-four forcings \\
+ & Eight & Twenty-four \\
+ & forcings & forcings \\
 \midrule
-Mean across seeds      & 850~K       & 419~K \\
-Range (min--max)       & 155--2312~K & 203--543~K \\
-Seeds $>1000$~K        & 3 of 8      & 0 of 8 \\
+Mean $T$ error across seeds       & 850~K       & 419~K \\
+$T$ error range (min--max)        & 155--2312~K & 203--543~K \\
+Seeds with mean $T > 1000$~K      & 3 of 8      & 0 of 8 \\
+Char-front error, best seed       & 0.8~mm      & 1.5~mm \\
+Seeds tracking front $<4$~mm      & 2 of 8      & 3 of 8 \\
+Seeds false-charring to back face & 5 of 8      & 5 of 8 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-This reverses a conclusion drawn from three runs each: more data helps. The
-eight-forcing model has a heavy tail (up to 2312~K) and diverges in three of eight
-seeds; its 104~K run is the extreme good end of that spread, not a typical
-outcome. The twenty-four-forcing model is far more reliable: every seed lands in
-203--543~K, the mean is halved, the spread is about six times tighter, and no seed
-diverges. The extra forcings, varied in peak and cutoff time, fill input-space
-regions the eight-forcing set leaves sparse, constraining the one-step map toward
-a stable solution; the trade is bias-variance, more data buying reliability rather
-than the single lowest number. We report the twenty-four-forcing model, a
-dependable mean near 420~K, with 104~K noted as the best case. Two further levers
-failed: multi-step rollout training overfits the eight-forcing sweep (retrying it
-on the larger set is future work), and averaging models diverged
-($\approx$840~K) because the averaged update follows a closed-loop trajectory none
-of the individual models would, drifting off-manifold. Weighting the loss toward
-the steep-gradient surface cells, an attempt to correct a near-surface bias,
-destabilized the rollout once strong enough to matter, illustrating that the
-conservatism keeping the model bounded is in tension with tracking the surface.
-The structural divergence is solved; reliable long-horizon accuracy across the
-cooldown transient is a closed-loop stability problem that more data improves but
-ensembling, multi-step training, and loss reweighting do not.
+Two things follow. First, more data removes the worst failures: the eight-forcing
+model diverges outright in three of eight seeds (to tens of thousands of kelvin),
+while the twenty-four-forcing model keeps every seed in 203--543~K. Second, and
+decisive for the verdict, a low mean error does not mean a faithful field, and
+none of these models produces one. The mean is taken over 500 cells, mostly the
+cool interior that is trivial to predict, so it flatters the model. The
+char-front depth, a design-relevant quantity rather than a domain average, makes
+this concrete (Table~\ref{tab:seeds}): only two of eight eight-forcing seeds and
+three of eight twenty-four-forcing seeds track the front to within a few
+millimeters, while in five of eight either way the model reports the entire slab
+charred to the back face. A faithful char front is the exception at both sizes;
+more data tightens the mean but does not fix it. Inspecting the rollout tells a
+different story than the mean. The best eight-forcing run (mean
+104~K) is bounded and qualitatively right, the surface heating and cooling on the
+correct schedule and the char front within a few millimeters of the solver's, but
+it undershoots the surface by hundreds of kelvin. The twenty-four-forcing model,
+despite its lower mean, is qualitatively worse where it matters: a near-surface
+cell runs away to $\sim$3100~K, climbing through the cooldown while the true
+surface falls below 700~K, and the spurious interior heat drives the predicted
+density below the pyrolysis threshold almost to the back face, so its char front
+reports near 0~mm where the solver's sits at 33~mm. This exposes a structural
+weakness: temperature and the char species are independent output channels with
+no enforced coupling, whereas in the solver charring is a consequence of heating,
+so the predicted front can advance into cells the model is failing to heat, a
+state no real ablator can occupy. No flux-form variant, at
+either dataset size, yields a faithful aw2 rollout; more data buys the absence of
+catastrophic blow-up, not correctness. Three further levers failed: multi-step
+rollout training overfits the eight-forcing sweep (retrying on the larger set is
+future work); averaging models diverged ($\approx$840~K), the averaged update
+following a closed-loop trajectory none of the models would; and weighting the
+loss toward the surface destabilized the rollout once strong enough to matter,
+showing the conservatism that keeps the model bounded is in tension with tracking
+the surface. The catastrophic divergence is solved; a physically faithful gas-case
+rollout is an open problem, and the gas-off case is the surrogate that works.
 
 \subsection{Wall Time}
 The Fortran solver runs \texttt{aw2\_tc21} in about 3 minutes; the present
@@ -411,28 +439,30 @@ surface transient and because a small per-step bias on quiescent cells accumulat
 over a long rollout. A per-cell state-delta predictor learns local dynamics well,
 but a fixed-step rollout is the wrong vehicle for a fast, localized forcing
 transient. The conservative flux-form, in which a uniform field produces exactly
-zero change by construction, removes the divergence (Section~\ref{sec:flux}): on
-the same held-out forcing the direct model runs past 25{,}000~K while the flux-form,
-in its best run, stays bounded near 100~K. Making it reliably accurate, rather than
-only structurally sound, remains open, and the spread is the honest measure. Over
-eight seeds the held-out error is initialization-sensitive, and more training data
-helps it directly: twenty-four forcings halve the mean error, tighten the spread
-about six-fold, and eliminate the divergent seeds of the eight-forcing model
-(Section~\ref{sec:flux}). What data does not buy is perfect accuracy; multi-step
-training, model averaging, and surface-weighted loss each failed or destabilized.
-The common thread is that the long cooldown transient sits at the edge of
-closed-loop stability, where more data moves the typical run safely inside but
-pinning every run there is unsolved. The verification caution of Section~\ref{sec:aw1acc}, that a sampling layer
-can mask or invent discrepancies, applies equally when comparing a surrogate field
-against a solver field.
+zero change by construction, removes the catastrophic divergence
+(Section~\ref{sec:flux}): the direct model runs past 25{,}000~K while the flux-form
+stays bounded. That is the one structural win, and it is genuine, but it is not a
+working gas surrogate. Some seeds still diverge to tens of thousands of kelvin,
+and the bounded models are physically wrong: the best eight-forcing run
+undershoots the surface by hundreds of kelvin, while the lower-mean
+twenty-four-forcing model hides a near-surface runaway and a char front that
+falsely reaches the back face (Section~\ref{sec:flux}). The low mean error of the
+bounded models flatters them, the mean being dominated by the easy cool interior.
+More data removes the worst blow-ups but does not buy a faithful field, and
+multi-step training, model averaging, and surface-weighted loss each failed. The
+gas case is therefore a diagnosed open problem rather than a delivered surrogate;
+the gas-off case is the one that works. The verification caution of
+Section~\ref{sec:aw1acc}, that a sampling layer can mask or invent discrepancies,
+applies equally when comparing a surrogate field against a solver field, and here
+a low mean error masking an unphysical field is exactly that caution realized.
 
 \section{Future Work}
-The conservative flux-form already removes the gas-case divergence
-(Section~\ref{sec:flux}); the remaining work is reliable accuracy across
-initializations. The obvious levers make it worse, not better: a larger forcing
-sweep, multi-step rollout training, and model averaging each fail
-(Section~\ref{sec:flux}), pointing away from data quantity and toward the
-closed-loop stability of the cooldown transient. Directions not yet tried are a
+The conservative flux-form removes the catastrophic gas-case divergence
+(Section~\ref{sec:flux}); the remaining work is a physically faithful rollout.
+More data already removes the worst blow-ups but does not deliver fidelity, and
+multi-step training, model averaging, and surface-weighted loss each failed
+(Section~\ref{sec:flux}), pointing toward the closed-loop stability of the
+cooldown transient rather than data quantity. Directions not yet tried are a
 stability-aware objective that penalizes error growth over the rollout directly, a
 time-step-aware adaptive schedule for the stiff aerothermal transient, and
 predicting a time-rate that is then integrated, so the time-step enters explicitly
@@ -450,14 +480,16 @@ gas-off case and to 0.064~K on the full gas case, and trained a per-cell
 message-passing GNN surrogate that reproduces a held-out gas-off rollout to 7.6~K.
 On the gas case the direct surrogate diverges, a failure we trace to a fixed-step
 state-delta formulation; a conservative flux-form variant that predicts face fluxes
-removes the divergence and yields a bounded, if not yet accurate, rollout on an
-unseen forcing. Reliable cooldown-phase accuracy remains open and
-initialization-sensitive: more training data improves it markedly (halving the
-mean error over eight seeds and removing the divergent runs), but multi-step
-training, model averaging, and surface-weighted loss do not, locating the residual
-difficulty in closed-loop stability rather than data quantity. A stability-aware
-training objective, mesh-resolution generalization, and extension to higher
-dimensions are the next steps.
+removes the catastrophic divergence but does not yield a physically faithful
+rollout: across eight seeds some still diverge, and the bounded models are wrong in
+the field even when their mean error is low, undershooting the surface or, for the
+lower-mean model, running away at the surface with a char front that falsely
+reaches the back face. We therefore report the gas case as a diagnosed open
+problem, with the gas-off case as the working surrogate. More data removes the
+worst blow-ups but not the unfaithfulness; the residual difficulty is closed-loop
+stability across the cooldown transient. A stability-aware training objective,
+mesh-resolution generalization, and extension to higher dimensions are the next
+steps.
 
 \section*{Acknowledgment}
 This work builds on the reference heat-shield solver developed by Dr.\ Martin and

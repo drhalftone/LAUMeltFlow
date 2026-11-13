@@ -14,10 +14,10 @@ run () {  # $1=tag  $2=extra-train-args
   local tag=$1 extra=$2
   for s in $SEEDS; do
     local m=heat_python/models/scratch/bias_${tag}_s${s}.pt
-    python -m heat_python.train_gnn $BASE $extra --seed "$s" --out "$m" \
+    python -m heat_python.gnn.train_gnn $BASE $extra --seed "$s" --out "$m" \
       >/dev/null 2>&1
     local out
-    out=$(python -m heat_python.eval_rollout_traj --traj "$HOLDOUT" --model "$m" 2>/dev/null)
+    out=$(python -m heat_python.gnn.eval_rollout_traj --traj "$HOLDOUT" --model "$m" 2>/dev/null)
     local mean hot bias
     mean=$(echo "$out" | grep "interior T:" | sed -E 's/.*mean \|err\| ([0-9.]+) K.*/\1/')
     hot=$(echo "$out"  | grep "hot band"   | sed -E 's/.*mean \|err\| ([0-9.]+) K.*/\1/')

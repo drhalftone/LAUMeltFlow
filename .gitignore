@@ -4,7 +4,11 @@
 *.blg
 *.out
 *.synctex.gz
+*.nav
+*.snm
+*.toc
 docs/heat_TPS/*.log
+whip/symposium/*.log
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

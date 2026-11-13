@@ -24,7 +24,7 @@ def main():
     t1, gt1, err1 = load("heat_python/data/rollout_aw1_n100.npz", 100, 0.05)
     t2, gt2, err2 = load("heat_python/data/rollout_aw2sweep_ms.npz", 500, 0.05)
 
-    fig, ax = plt.subplots(1, 3, figsize=(15, 4.6))
+    fig, ax = plt.subplots(1, 2, figsize=(11, 4.6))
     blue, red = "#1f6fb2", "#c0392b"
 
     # (a) SPATIAL per-cell |dT| near the surface -- NOT the cause (aw2 gentler).
@@ -53,14 +53,6 @@ def main():
     b.text(0.5, 0.78, "aw2 surface leaps ~18x more per step\n(stiff, fast transient)",
            transform=b.transAxes, ha="center", fontsize=9, color="#a8421f", style="italic")
     b.legend(fontsize=8)
-
-    # (c) consequence: rollout error vs time.
-    c = ax[2]
-    c.semilogy(t1, err1.mean(1), color=blue, lw=2, label="aw1 GNN (~7.6 K)")
-    c.semilogy(t2, err2.mean(1), color=red, lw=2, label="aw2 GNN (diverges)")
-    c.set_title("(c) Consequence: rollout error vs time", fontsize=10)
-    c.set_xlabel("time [s]"); c.set_ylabel("mean |error| [K]  (log)")
-    c.legend(fontsize=8)
 
     fig.suptitle("Why aw1 works and aw2 fails: a fast surface transient the coarse super-step can't track "
                  "(temporal, not spatial)", fontsize=12, y=1.0)
